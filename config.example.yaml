@@ -1,0 +1,70 @@
+# ============================================================
+# Companion — Configuration
+# ============================================================
+# Copy this file to config.yaml and adjust to taste.
+# Any key you omit will use the default shown here.
+# ============================================================
+
+# Display name used in console output and the greeting
+companion_name: Companion
+
+# System prompt sent to the LLM at the start of every context window.
+# Keep it concise — every token here reduces room for conversation history.
+system_prompt: |
+  You are a friendly, curious, and helpful voice companion.
+  Keep your responses concise and conversational — typically one to three
+  sentences. You speak naturally, like a close friend. Avoid lists, markdown
+  formatting, or overly formal language. Ask follow-up questions to keep the
+  conversation flowing.
+
+# ------------------------------------------------------------------
+# Ollama LLM
+# ------------------------------------------------------------------
+ollama:
+  base_url: http://localhost:11434
+  model: llama3                    # Any model pulled into Ollama
+  temperature: 0.7                 # 0.0 = deterministic, 1.0 = creative
+  context_window: 4096             # num_ctx sent to Ollama
+
+# ------------------------------------------------------------------
+# Whisper Speech-to-Text  (faster-whisper)
+# ------------------------------------------------------------------
+# Model sizes vs resource usage:
+#
+#   Size    | Params | VRAM (fp16) | Relative Speed | Accuracy
+#   --------|--------|-------------|----------------|----------
+#   tiny    |  39M   |   ~75 MB    | ~10×           | ★★☆☆☆
+#   base    |  74M   |  ~150 MB    | ~7×            | ★★★☆☆
+#   small   | 244M   |  ~500 MB    | ~4×            | ★★★★☆
+#   medium  | 769M   |  ~1.5 GB    | ~2×            | ★★★★☆
+#   large   | 1550M  |  ~3.0 GB    | 1× (baseline)  | ★★★★★
+#
+whisper:
+  model_size: base                 # tiny | base | small | medium | large
+  device: cuda                     # cuda | cpu
+  language: en                     # ISO 639-1 language code
+  energy_threshold: 300            # Mic sensitivity (higher = less sensitive)
+  pause_duration: 1.2              # Seconds of silence to end an utterance
+
+# ------------------------------------------------------------------
+# Kokoro Text-to-Speech
+# ------------------------------------------------------------------
+# Available voices:
+#
+#   American Female: af_sky, af_bella, af_sarah, af_nicole
+#   American Male:   am_adam, am_michael
+#   British Female:  bf_emma, bf_isabella
+#   British Male:    bm_george, bm_lewis
+#
+kokoro:
+  voice: af_sky                    # See voice list above
+  speed: 1.0                      # Playback speed multiplier
+  device: cuda                    # cuda | cpu
+
+# ------------------------------------------------------------------
+# Memory / SQLite
+# ------------------------------------------------------------------
+memory:
+  db_path: data/companion.db      # Auto-created if it doesn't exist
+  max_context_messages: 20         # Recent messages included in LLM context
+  summary_threshold: 50            # Auto-summarise after this many messages
