@@ -1,2 +1,2 @@
-# digital-companion
-digital-companion, your local LLM friend
+# Companion
+Companion, your local LLM friend
