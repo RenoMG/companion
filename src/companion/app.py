@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import logging
 import re
+import signal
+import sys
 import threading
 import time
 
-from companion.config import CompanionConfig
+from companion.config import CompanionConfig, load_config
 from companion.llm import OllamaClient
 from companion.memory import MemoryStore
 from companion.stt import SpeechToText
@@ -25,6 +27,7 @@ class CompanionApp:
     def __init__(self, config: CompanionConfig) -> None:
         self._config = config
         self._running = False
+        self._summarising = threading.Event()
         self._memory: MemoryStore | None = None
         self._llm: OllamaClient | None = None
         self._stt: SpeechToText | None = None
@@ -93,6 +96,8 @@ class CompanionApp:
 
     def stop(self) -> None:
         """Shut down all components."""
+        if not self._running:
+            return
         self._running = False
         if self._tts:
             self._tts.stop()
@@ -146,7 +151,8 @@ class CompanionApp:
 
         self._memory.add_message("assistant", full_response)
 
-        if self._memory.should_summarise:
+        if self._memory.should_summarise and not self._summarising.is_set():
+            self._summarising.set()
             thread = threading.Thread(
                 target=self._maybe_summarise, daemon=True
             )
@@ -157,15 +163,42 @@ class CompanionApp:
         assert self._memory is not None
         assert self._llm is not None
 
-        logger.info("Summarising conversation …")
-        messages = self._memory.get_recent_messages(
-            self._config.memory.summary_threshold
+        try:
+            logger.info("Summarising conversation …")
+            messages = self._memory.get_recent_messages(
+                self._config.memory.summary_threshold
+            )
+            conversation_text = "\n".join(
+                f"{m.role.title()}: {m.content}" for m in messages
+            )
+            summary = self._llm.summarise(conversation_text)
+            if summary:
+                self._memory.add_summary(summary)
+                self._memory.clear_messages()
+                logger.info("Conversation summarised and history cleared.")
+        finally:
+            self._summarising.clear()
+
+
+def main() -> None:
+    """Load configuration and start the voice companion."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+    config = load_config()
+    app = CompanionApp(config)
+
+    def _handle_signal(signum: int, _frame: object) -> None:
+        logging.getLogger(__name__).info(
+            "Received signal %s — shutting down.", signum
         )
-        conversation_text = "\n".join(
-            f"{m.role.title()}: {m.content}" for m in messages
-        )
-        summary = self._llm.summarise(conversation_text)
-        if summary:
-            self._memory.add_summary(summary)
-            self._memory.clear_messages()
-            logger.info("Conversation summarised and history cleared.")
+        app.stop()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, _handle_signal)
+    signal.signal(signal.SIGTERM, _handle_signal)
+
+    app.run()
