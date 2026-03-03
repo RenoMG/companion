@@ -47,7 +47,7 @@ cd companion
 uv sync
 
 # For GPU acceleration, ensure PyTorch with CUDA is installed:
-uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+uv pip install torch --index-url https://download.pytorch.org/whl/cu121
 
 # Copy and edit config
 cp config.example.yaml config.yaml
