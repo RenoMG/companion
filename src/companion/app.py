@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import signal
@@ -11,7 +12,7 @@ import time
 from pathlib import Path
 
 from companion.config import CompanionConfig, load_config
-from companion.llm import OllamaClient
+from companion.llm import FACT_TOOLS, OllamaClient
 from companion.memory import MemoryStore
 from companion.stt import SpeechToText
 from companion.tts import TextToSpeech
@@ -28,6 +29,7 @@ class CompanionApp:
     def __init__(self, config: CompanionConfig) -> None:
         self._config = config
         self._running = False
+        self._stopped = False
         self._summarising = threading.Event()
         self._memory: MemoryStore | None = None
         self._llm: OllamaClient | None = None
@@ -97,11 +99,29 @@ class CompanionApp:
 
     def stop(self) -> None:
         """Shut down all components."""
-        if not self._running:
+        if self._stopped:
             return
+        self._stopped = True
         self._running = False
         if self._tts:
             self._tts.stop()
+        # Wait for any background summarisation to finish.
+        if self._summarising.is_set():
+            logger.info("Waiting for background summarisation to finish …")
+            start = time.monotonic()
+            while self._summarising.is_set() and (time.monotonic() - start) < 30:
+                time.sleep(0.5)
+        # Summarise remaining messages before closing (best-effort).
+        if self._memory and self._llm:
+            try:
+                self._summarise_on_exit()
+            except Exception:
+                logger.exception("Exit summarisation failed.")
+                # Still wipe messages so next session starts clean.
+                try:
+                    self._memory.clear_messages()
+                except Exception:
+                    logger.exception("Failed to clear messages on exit.")
         if self._llm:
             self._llm.close()
         if self._memory:
@@ -111,6 +131,32 @@ class CompanionApp:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _summarise_on_exit(self) -> None:
+        """Summarise all remaining messages and wipe the messages table."""
+        assert self._memory is not None
+        assert self._llm is not None
+
+        messages = self._memory.get_all_messages()
+        if not messages:
+            logger.info("No messages to summarise on exit.")
+            return
+
+        print("Summarising conversation before exit …")
+        logger.info("Summarising %d messages on exit.", len(messages))
+
+        existing_summary = self._memory.get_latest_summary()
+        conversation_text = "\n".join(
+            f"{m.role.title()}: {m.content}" for m in messages
+        )
+
+        summary = self._llm.summarise(conversation_text, existing_summary)
+        if summary:
+            self._memory.add_summary(summary)
+            logger.info("Exit summary saved.")
+
+        self._memory.clear_messages()
+        logger.info("Messages wiped for next session.")
 
     def _handle_turn(self, user_text: str) -> None:
         """Process a single user turn: store, think, speak."""
@@ -126,27 +172,18 @@ class CompanionApp:
         context = self._memory.build_context(self._config.system_prompt)
         print(f"[{name}]: ", end="", flush=True)
 
-        full_response = ""
-        sentence_buffer = ""
+        tool_calls: list = []
+        full_response = self._stream_and_speak(context, tool_calls)
 
-        for chunk in self._llm.stream_chat(context):
-            full_response += chunk
-            sentence_buffer += chunk
-            print(chunk, end="", flush=True)
-
-            # Detect completed sentences and send them to TTS immediately
-            matches = _SENTENCE_RE.findall(sentence_buffer)
-            if matches:
-                for sentence in matches:
-                    self._tts.speak(sentence)
-                # Keep only the unmatched tail
-                last_end = sentence_buffer.rfind(matches[-1]) + len(matches[-1])
-                sentence_buffer = sentence_buffer[last_end:]
-
-        # Speak any remaining text after the stream ends
-        remainder = sentence_buffer.strip()
-        if remainder:
-            self._tts.speak(remainder)
+        # If the model requested tool calls, execute them and get a follow-up.
+        if tool_calls:
+            tool_results = self._execute_tool_calls(tool_calls)
+            # Build the follow-up context with the tool interaction.
+            context.append({"role": "assistant", "content": full_response, "tool_calls": tool_calls})
+            for result in tool_results:
+                context.append(result)
+            # Stream the model's follow-up response (no tools this round).
+            full_response = self._stream_and_speak(context)
 
         print()  # newline after streamed output
 
@@ -158,6 +195,83 @@ class CompanionApp:
                 target=self._maybe_summarise, daemon=True
             )
             thread.start()
+
+    def _stream_and_speak(
+        self,
+        context: list[dict],
+        tool_calls_out: list | None = None,
+    ) -> str:
+        """Stream an LLM response, printing and speaking as sentences arrive.
+
+        Returns the full response text.  If *tool_calls_out* is provided,
+        tool call information is appended to it.
+        """
+        assert self._llm is not None
+        assert self._tts is not None
+
+        full_response = ""
+        sentence_buffer = ""
+
+        tools = FACT_TOOLS if tool_calls_out is not None else None
+        for chunk in self._llm.stream_chat(context, tools=tools, tool_calls_out=tool_calls_out):
+            full_response += chunk
+            sentence_buffer += chunk
+            print(chunk, end="", flush=True)
+
+            matches = _SENTENCE_RE.findall(sentence_buffer)
+            if matches:
+                for sentence in matches:
+                    self._tts.speak(sentence)
+                last_end = sentence_buffer.rfind(matches[-1]) + len(matches[-1])
+                sentence_buffer = sentence_buffer[last_end:]
+
+        remainder = sentence_buffer.strip()
+        if remainder:
+            self._tts.speak(remainder)
+
+        return full_response
+
+    def _execute_tool_calls(self, tool_calls: list) -> list[dict]:
+        """Execute tool calls against the memory store.
+
+        Returns a list of ``{"role": "tool", ...}`` messages for the LLM.
+        """
+        assert self._memory is not None
+        results: list[dict] = []
+
+        for tc in tool_calls:
+            func = tc.get("function", {})
+            func_name = func.get("name", "")
+            args = func.get("arguments", {})
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except json.JSONDecodeError:
+                    args = {}
+
+            if func_name == "store_fact":
+                key = args.get("key", "")
+                value = args.get("value", "")
+                if key and value:
+                    self._memory.set_fact(key, value)
+                    result_text = f"Stored fact: {key} = {value}"
+                    logger.info("Tool call: store_fact(%s, %s)", key, value)
+                else:
+                    result_text = "Error: key and value are required"
+            elif func_name == "delete_fact":
+                key = args.get("key", "")
+                if key:
+                    self._memory.delete_fact(key)
+                    result_text = f"Deleted fact: {key}"
+                    logger.info("Tool call: delete_fact(%s)", key)
+                else:
+                    result_text = "Error: key is required"
+            else:
+                result_text = f"Unknown tool: {func_name}"
+
+            results.append({"role": "tool", "content": result_text})
+
+        return results
 
     def _maybe_summarise(self) -> None:
         """Summarise old messages in a background thread (rolling window).
