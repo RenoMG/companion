@@ -12,6 +12,60 @@ from companion.config import OllamaConfig
 
 logger = logging.getLogger(__name__)
 
+# Tool definitions for LLM-driven memory (OpenAI-compatible format).
+FACT_TOOLS: list[dict] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "store_fact",
+            "description": (
+                "Store or update a fact about the user for long-term memory. "
+                "Use this when the user shares personal information worth "
+                "remembering, such as their name, preferences, occupation, "
+                "hobbies, family details, or important dates."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "key": {
+                        "type": "string",
+                        "description": (
+                            "A short descriptive label for the fact "
+                            "(e.g. 'name', 'favorite_color', 'occupation')"
+                        ),
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": "The value of the fact",
+                    },
+                },
+                "required": ["key", "value"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_fact",
+            "description": (
+                "Delete a previously stored fact about the user. Use this "
+                "when the user says a stored fact is no longer true or asks "
+                "you to forget something."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "key": {
+                        "type": "string",
+                        "description": "The key of the fact to delete",
+                    },
+                },
+                "required": ["key"],
+            },
+        },
+    },
+]
+
 
 class OllamaClient:
     """HTTP client for the Ollama REST API."""
@@ -28,10 +82,18 @@ class OllamaClient:
         )
 
     def stream_chat(
-        self, messages: list[dict]
+        self,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        tool_calls_out: list | None = None,
     ) -> Generator[str, None, None]:
-        """Stream chat completions from Ollama, yielding text chunks."""
-        payload = {
+        """Stream chat completions from Ollama, yielding text chunks.
+
+        When *tools* is provided, the model may return tool calls instead of
+        (or alongside) text.  Any tool calls found in the response are
+        appended to *tool_calls_out* so the caller can execute them.
+        """
+        payload: dict = {
             "model": self._model,
             "messages": messages,
             "stream": True,
@@ -40,8 +102,11 @@ class OllamaClient:
                 "num_ctx": self._context_window,
             },
         }
+        if tools:
+            payload["tools"] = tools
 
         try:
+            accumulated_tool_calls: list = []
             with self._client.stream(
                 "POST",
                 f"{self._base_url}/api/chat",
@@ -55,11 +120,19 @@ class OllamaClient:
                         chunk = json.loads(line)
                     except json.JSONDecodeError:
                         continue
-                    content = chunk.get("message", {}).get("content", "")
+                    msg = chunk.get("message", {})
+                    content = msg.get("content", "")
                     if content:
                         yield content
+                    # Accumulate tool calls from any chunk.
+                    tc = msg.get("tool_calls")
+                    if tc:
+                        accumulated_tool_calls.extend(tc)
                     if chunk.get("done"):
                         break
+
+            if accumulated_tool_calls and tool_calls_out is not None:
+                tool_calls_out.extend(accumulated_tool_calls)
 
         except httpx.ConnectError:
             logger.error("Cannot connect to Ollama at %s", self._base_url)

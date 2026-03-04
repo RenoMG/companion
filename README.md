@@ -30,9 +30,9 @@ Your local AI voice friend — everything runs on your machine, no cloud APIs re
 
 ## Requirements
 
-- **Python** 3.10+
+- **Python** 3.11+
 - **NVIDIA GPU** with CUDA (recommended) — CPU-only mode also works
-- **Ollama** installed and running (`ollama serve`)
+- **Ollama** installed and running (`ollama serve`) with a model that supports tool calling
 - **PortAudio** system library (`sudo apt install libportaudio2` on Debian/Ubuntu)
 - **espeak-ng** (required by Kokoro: `sudo apt install espeak-ng`)
 
@@ -52,7 +52,7 @@ uv pip install torch --index-url https://download.pytorch.org/whl/cu121
 # Copy and edit config
 cp config.example.yaml config.yaml
 
-# Pull an Ollama model
+# Pull an Ollama model (must support tool calling)
 ollama pull llama3
 ```
 
@@ -102,23 +102,40 @@ values use sensible defaults.
 
 ## Memory System
 
-Companion remembers conversations across sessions using three SQLite tables:
+Companion remembers things about you across sessions using three SQLite tables:
 
-| Table      | Purpose                                        |
-|------------|------------------------------------------------|
-| `messages` | Full conversation history (user + assistant)   |
-| `summaries`| Rolling LLM-generated summaries of older chats |
-| `facts`    | Key-value pairs about the user (persistent)    |
+| Table      | Purpose                                           |
+|------------|---------------------------------------------------|
+| `messages` | Current session conversation (wiped on exit)      |
+| `summaries`| Rolling LLM-generated summaries across sessions   |
+| `facts`    | Key-value pairs the LLM stores about the user     |
 
-**What goes into the LLM context (in order):**
+### Session lifecycle
+
+1. **Start** — The session begins with zero messages. The LLM receives the
+   latest summary and stored facts as context, so it remembers previous
+   conversations.
+2. **During** — Messages accumulate normally. When the count exceeds
+   `summary_threshold` (default 50), a background thread summarises older
+   messages and deletes them, keeping the most recent `max_context_messages`
+   (default 20) in the database.
+3. **Exit** — All remaining messages are summarised and the messages table is
+   wiped. The next session starts clean.
+
+### Fact storage
+
+The LLM uses Ollama tool calling to store and delete facts about you
+automatically. When you share personal details (name, preferences, hobbies,
+etc.), the model calls `store_fact` to save them. When you say something is
+no longer true, it calls `delete_fact`. Facts persist across sessions and
+appear in the LLM context so the model naturally recalls them.
+
+### LLM context (in order)
+
 1. System prompt
 2. Latest conversation summary (if any)
 3. Stored user facts (if any)
 4. Most recent N messages (configurable, default 20)
-
-When the message count exceeds `summary_threshold` (default 50), a background
-thread asks the LLM to summarise the conversation, saves it, and clears the
-message history.
 
 ## Project Structure
 
@@ -135,7 +152,7 @@ companion/
     ├── app.py               # Main event loop & orchestration
     ├── config.py            # Config dataclasses & YAML loader
     ├── stt.py               # Speech-to-text (faster-whisper)
-    ├── llm.py               # Ollama streaming client
+    ├── llm.py               # Ollama streaming client + tool definitions
     ├── tts.py               # Kokoro TTS with playback queue
     └── memory.py            # SQLite memory store
 ```

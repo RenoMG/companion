@@ -89,11 +89,12 @@ class MemoryStore:
         If *n* is ``None``, defaults to ``max_context_messages``.
         """
         limit = n if n is not None else self._max_context
-        rows = self._conn.execute(
-            "SELECT id, role, content, timestamp FROM messages "
-            "ORDER BY id DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, role, content, timestamp FROM messages "
+                "ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
         return [
             Message(id=r["id"], role=r["role"], content=r["content"], timestamp=r["timestamp"])
             for r in reversed(rows)
@@ -101,7 +102,8 @@ class MemoryStore:
 
     def get_total_message_count(self) -> int:
         """Return the total number of stored messages."""
-        row = self._conn.execute("SELECT COUNT(*) AS cnt FROM messages").fetchone()
+        with self._lock:
+            row = self._conn.execute("SELECT COUNT(*) AS cnt FROM messages").fetchone()
         return row["cnt"]
 
     def get_messages_for_summary(self, keep_recent: int) -> list[Message]:
@@ -110,13 +112,14 @@ class MemoryStore:
         These are the older messages that should be summarised and then deleted.
         Returns oldest-first ordering.
         """
-        rows = self._conn.execute(
-            "SELECT id, role, content, timestamp FROM messages "
-            "WHERE id NOT IN ("
-            "  SELECT id FROM messages ORDER BY id DESC LIMIT ?"
-            ") ORDER BY id ASC",
-            (keep_recent,),
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, role, content, timestamp FROM messages "
+                "WHERE id NOT IN ("
+                "  SELECT id FROM messages ORDER BY id DESC LIMIT ?"
+                ") ORDER BY id ASC",
+                (keep_recent,),
+            ).fetchall()
         return [
             Message(id=r["id"], role=r["role"], content=r["content"], timestamp=r["timestamp"])
             for r in rows
@@ -128,6 +131,17 @@ class MemoryStore:
             self._conn.execute("DELETE FROM messages WHERE id <= ?", (max_id,))
             self._conn.commit()
         logger.info("Deleted messages up to id=%d after summarisation.", max_id)
+
+    def get_all_messages(self) -> list[Message]:
+        """Return every message, oldest first."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, role, content, timestamp FROM messages ORDER BY id ASC"
+            ).fetchall()
+        return [
+            Message(id=r["id"], role=r["role"], content=r["content"], timestamp=r["timestamp"])
+            for r in rows
+        ]
 
     def clear_messages(self) -> None:
         """Delete all messages (typically after summarisation)."""
@@ -157,9 +171,10 @@ class MemoryStore:
 
     def get_latest_summary(self) -> str | None:
         """Return the most recent summary text, or ``None``."""
-        row = self._conn.execute(
-            "SELECT content FROM summaries ORDER BY id DESC LIMIT 1"
-        ).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT content FROM summaries ORDER BY id DESC LIMIT 1"
+            ).fetchone()
         return row["content"] if row else None
 
     # ------------------------------------------------------------------
@@ -179,14 +194,16 @@ class MemoryStore:
 
     def get_fact(self, key: str) -> str | None:
         """Look up a single fact by key."""
-        row = self._conn.execute(
-            "SELECT value FROM facts WHERE key = ?", (key,)
-        ).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT value FROM facts WHERE key = ?", (key,)
+            ).fetchone()
         return row["value"] if row else None
 
     def get_all_facts(self) -> dict[str, str]:
         """Return every stored fact as a ``{key: value}`` dict."""
-        rows = self._conn.execute("SELECT key, value FROM facts").fetchall()
+        with self._lock:
+            rows = self._conn.execute("SELECT key, value FROM facts").fetchall()
         return {r["key"]: r["value"] for r in rows}
 
     def delete_fact(self, key: str) -> None:
