@@ -84,7 +84,16 @@ class TextToSpeech:
                 continue
 
             try:
-                sd.play(audio, samplerate=_SAMPLE_RATE, blocking=True)
+                audio_data = audio.astype(np.float32)
+                if audio_data.ndim == 1:
+                    audio_data = audio_data.reshape(-1, 1)
+                with sd.OutputStream(
+                    samplerate=_SAMPLE_RATE,
+                    channels=1,
+                    dtype="float32",
+                    latency="high",
+                ) as stream:
+                    stream.write(audio_data)
             except sd.PortAudioError as exc:
                 logger.error("Playback error: %s", exc)
 

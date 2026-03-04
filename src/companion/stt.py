@@ -72,6 +72,7 @@ class SpeechToText:
             channels=CHANNELS,
             dtype=DTYPE,
             blocksize=CHUNK_FRAMES,
+            latency="high",
             callback=_callback,
         ):
             while time.monotonic() < deadline:

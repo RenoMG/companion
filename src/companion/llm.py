@@ -71,19 +71,32 @@ class OllamaClient:
             logger.error("Ollama request error: %s", exc)
             yield "[Error: Could not reach Ollama. Check your connection.]"
 
-    def summarise(self, conversation_text: str) -> str:
-        """Ask the model to produce a concise summary of a conversation."""
-        messages = [
-            {
-                "role": "user",
-                "content": (
-                    "Write a 3-5 sentence factual summary of the following "
-                    "conversation in third person. Focus on key topics discussed, "
-                    "decisions made, and any personal details shared.\n\n"
-                    f"{conversation_text}"
-                ),
-            }
-        ]
+    def summarise(
+        self, conversation_text: str, existing_summary: str | None = None
+    ) -> str:
+        """Ask the model to produce a concise rolling summary of a conversation.
+
+        When *existing_summary* is provided, the LLM merges it with the new
+        messages so that historical context is preserved across cycles.
+        """
+        if existing_summary:
+            prompt = (
+                "Below is an existing summary of an earlier conversation, followed by "
+                "new conversation messages. Write an updated 3-5 sentence factual "
+                "summary in third person that incorporates both the existing summary "
+                "and the new messages. Focus on key topics discussed, decisions made, "
+                "and any personal details shared.\n\n"
+                f"[Existing summary]:\n{existing_summary}\n\n"
+                f"[New messages]:\n{conversation_text}"
+            )
+        else:
+            prompt = (
+                "Write a 3-5 sentence factual summary of the following "
+                "conversation in third person. Focus on key topics discussed, "
+                "decisions made, and any personal details shared.\n\n"
+                f"{conversation_text}"
+            )
+        messages = [{"role": "user", "content": prompt}]
         payload = {
             "model": self._model,
             "messages": messages,
