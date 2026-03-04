@@ -8,6 +8,7 @@ import signal
 import sys
 import threading
 import time
+from pathlib import Path
 
 from companion.config import CompanionConfig, load_config
 from companion.llm import OllamaClient
@@ -159,34 +160,80 @@ class CompanionApp:
             thread.start()
 
     def _maybe_summarise(self) -> None:
-        """Summarise the conversation in a background thread."""
+        """Summarise old messages in a background thread (rolling window).
+
+        Keeps the most recent ``max_context_messages`` in the database and
+        only summarises/deletes the older ones.  An existing summary is fed
+        back into the LLM prompt so context is never lost across cycles.
+        """
         assert self._memory is not None
         assert self._llm is not None
 
         try:
             logger.info("Summarising conversation …")
-            messages = self._memory.get_recent_messages(
-                self._config.memory.summary_threshold
+
+            existing_summary = self._memory.get_latest_summary()
+
+            old_messages = self._memory.get_messages_for_summary(
+                self._config.memory.max_context_messages
             )
+            if not old_messages:
+                logger.info("No old messages to summarise.")
+                return
+
+            max_id = old_messages[-1].id
+
             conversation_text = "\n".join(
-                f"{m.role.title()}: {m.content}" for m in messages
+                f"{m.role.title()}: {m.content}" for m in old_messages
             )
-            summary = self._llm.summarise(conversation_text)
+
+            summary = self._llm.summarise(conversation_text, existing_summary)
+
             if summary:
                 self._memory.add_summary(summary)
-                self._memory.clear_messages()
-                logger.info("Conversation summarised and history cleared.")
+                self._memory.delete_messages_up_to(max_id)
+                logger.info(
+                    "Conversation summarised; deleted messages up to id=%d.",
+                    max_id,
+                )
         finally:
             self._summarising.clear()
 
 
-def main() -> None:
-    """Load configuration and start the voice companion."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+def setup_logging() -> None:
+    """Configure logging to write to files in a ``Logs/`` directory.
+
+    * ``Logs/companion.log`` — all INFO-and-above messages.
+    * ``Logs/error.log``     — ERROR-and-above messages only.
+
+    No StreamHandler is added, so the terminal stays clean for the
+    interactive conversation UI.
+    """
+    log_dir = Path("Logs")
+    log_dir.mkdir(exist_ok=True)
+
+    fmt = logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%H:%M:%S",
     )
+
+    file_handler = logging.FileHandler(log_dir / "companion.log")
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(fmt)
+
+    error_handler = logging.FileHandler(log_dir / "error.log")
+    error_handler.setLevel(logging.ERROR)
+    error_handler.setFormatter(fmt)
+
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    root.addHandler(file_handler)
+    root.addHandler(error_handler)
+
+
+def main() -> None:
+    """Load configuration and start the voice companion."""
+    setup_logging()
 
     config = load_config()
     app = CompanionApp(config)

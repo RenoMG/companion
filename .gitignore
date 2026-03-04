@@ -9,8 +9,12 @@ __pycache__/
 # Ignore config file
 config.yaml
 
-# Ignore Companion DB
+# Ignore Companion DB and data directory
 companion.db
+data/
+
+# Ignore log output directory
+Logs/
 
 # Distribution / packaging
 .Python
