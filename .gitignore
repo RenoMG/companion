@@ -6,6 +6,12 @@ __pycache__/
 # C extensions
 *.so
 
+# Ignore config file
+config.yaml
+
+# Ignore Companion DB
+companion.db
+
 # Distribution / packaging
 .Python
 build/
