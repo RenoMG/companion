@@ -84,7 +84,7 @@ class TextToSpeech:
                 continue
 
             try:
-                audio_data = audio.astype(np.float32)
+                audio_data = audio.cpu().numpy().astype(np.float32)
                 if audio_data.ndim == 1:
                     audio_data = audio_data.reshape(-1, 1)
                 with sd.OutputStream(
