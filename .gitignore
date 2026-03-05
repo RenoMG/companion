@@ -9,6 +9,9 @@ __pycache__/
 # Ignore config file
 config.yaml
 
+# Personal project guide (not part of the repo)
+PROJECT_GUIDE.md
+
 # Ignore Companion DB and data directory
 companion.db
 data/
