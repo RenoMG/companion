@@ -66,7 +66,7 @@ class CompanionApp:
         self._tts = TextToSpeech(self._config.kokoro)
 
         name = self._config.companion_name
-        greeting = f"Hello! I'm {name}. What would you like to talk about?"
+        greeting = f"Hello! I'm {name}. Start talking to initiate a conversation!"
         print(f"\n[{name}]: {greeting}")
         self._tts.speak(greeting)
 
