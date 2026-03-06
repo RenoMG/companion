@@ -65,6 +65,14 @@ class MemoryConfig:
 
 
 @dataclass
+class WebConfig:
+    """Settings for web UI behaviour defaults."""
+
+    audio_enabled_default: bool = True
+    voice_chat_default: bool = False
+
+
+@dataclass
 class CompanionConfig:
     """Top-level application configuration."""
 
@@ -74,6 +82,7 @@ class CompanionConfig:
     whisper: WhisperConfig = field(default_factory=WhisperConfig)
     kokoro: KokoroConfig = field(default_factory=KokoroConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
+    web: WebConfig = field(default_factory=WebConfig)
 
 
 def _apply_dict_to_dataclass(dc: Any, data: dict[str, Any]) -> None:
@@ -111,6 +120,7 @@ def load_config(path: str = "config.yaml") -> CompanionConfig:
         "whisper": config.whisper,
         "kokoro": config.kokoro,
         "memory": config.memory,
+        "web": config.web,
     }
 
     for key, value in raw.items():
