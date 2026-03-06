@@ -35,6 +35,7 @@ def create_app(config: CompanionConfig | None = None) -> Flask:
     # Shared state (initialised lazily on first request)
     # ------------------------------------------------------------------
     state: dict = {}
+    _init_lock = threading.Lock()
     _stt_lock = threading.Lock()
     _tts_lock = threading.Lock()
     _summarising = threading.Event()
@@ -46,19 +47,35 @@ def create_app(config: CompanionConfig | None = None) -> Flask:
     def _ensure_initialised():
         if state:
             return
-        logger.info("Initialising backend components …")
-        state["config"] = config
-        state["memory"] = MemoryStore(config.memory)
-        state["llm"] = OllamaClient(config.ollama)
+        with _init_lock:
+            if state:
+                return
+            logger.info("Initialising backend components …")
+            state["config"] = config
+            state["memory"] = MemoryStore(config.memory)
+            state["llm"] = OllamaClient(config.ollama)
 
-        if not state["llm"].check_connection():
-            logger.error("Cannot reach Ollama at %s", config.ollama.base_url)
+            if not state["llm"].check_connection():
+                logger.error("Cannot reach Ollama at %s", config.ollama.base_url)
 
-        logger.info("Loading speech-to-text model …")
-        state["stt"] = SpeechToText(config.whisper)
-        logger.info("Loading text-to-speech model …")
-        state["tts"] = TextToSpeech(config.kokoro, playback=False)
-        logger.info("All components initialised.")
+            logger.info("Loading speech-to-text model …")
+            state["stt"] = SpeechToText(config.whisper)
+            logger.info("Loading text-to-speech model …")
+            state["tts"] = TextToSpeech(config.kokoro, playback=False)
+            logger.info("All components initialised.")
+
+    def _resample_audio(audio: np.ndarray, from_rate: int, to_rate: int) -> np.ndarray:
+        """Resample mono audio with linear interpolation."""
+        if from_rate == to_rate:
+            return audio
+        if audio.size == 0:
+            return audio
+
+        duration = audio.shape[0] / from_rate
+        target_length = max(1, int(round(duration * to_rate)))
+        src_x = np.linspace(0.0, duration, num=audio.shape[0], endpoint=False)
+        dst_x = np.linspace(0.0, duration, num=target_length, endpoint=False)
+        return np.interp(dst_x, src_x, audio).astype(np.float32)
 
     # ------------------------------------------------------------------
     # Routes
@@ -145,7 +162,7 @@ def create_app(config: CompanionConfig | None = None) -> Flask:
 
         try:
             audio_buf = io.BytesIO(audio_file.read())
-            audio, _sample_rate = sf.read(audio_buf, dtype="float32")
+            audio, sample_rate = sf.read(audio_buf, dtype="float32")
         except Exception as exc:
             logger.error("Failed to read audio: %s", exc)
             return jsonify({"error": "Audio conversion failed"}), 500
@@ -156,6 +173,8 @@ def create_app(config: CompanionConfig | None = None) -> Flask:
 
         if audio.size == 0:
             return jsonify({"text": ""})
+
+        audio = _resample_audio(audio, int(sample_rate), 16000)
 
         with _stt_lock:
             text = stt.transcribe_audio(audio)
