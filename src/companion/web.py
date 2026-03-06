@@ -87,7 +87,11 @@ def create_app(config: CompanionConfig | None = None) -> Flask:
 
     @app.route("/api/config")
     def get_config():
-        return jsonify({"companion_name": config.companion_name})
+        return jsonify({
+            "companion_name": config.companion_name,
+            "audio_enabled_default": config.web.audio_enabled_default,
+            "voice_chat_default": config.web.voice_chat_default,
+        })
 
     @app.route("/api/history")
     def history():

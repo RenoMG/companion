@@ -75,3 +75,10 @@ memory:
   db_path: data/companion.db      # Auto-created if it doesn't exist
   max_context_messages: 20         # Recent messages included in LLM context
   summary_threshold: 50            # Auto-summarise after this many messages
+
+# ------------------------------------------------------------------
+# Web UI
+# ------------------------------------------------------------------
+web:
+  audio_enabled_default: true      # Enable assistant voice playback by default
+  voice_chat_default: false        # true = mic button behaves as hold-to-talk toggle
