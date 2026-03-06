@@ -17,6 +17,7 @@ dependencies = [
     "soundfile>=0.12.1",
     "numpy>=1.26.0",
     "pyyaml>=6.0",
+    "flask>=3.0.0",
     "pip>=25.0.1",
 ]
 
@@ -29,6 +30,7 @@ dev = [
 
 [project.scripts]
 companion = "companion.app:main"
+companion-web = "companion.app:main_web"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/companion"]
