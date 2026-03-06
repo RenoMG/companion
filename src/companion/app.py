@@ -363,3 +363,13 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _handle_signal)
 
     app.run()
+
+
+def main_web() -> None:
+    """Start the Flask web interface."""
+    setup_logging()
+
+    from companion.web import create_app
+
+    flask_app = create_app()
+    flask_app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)

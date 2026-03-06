@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import logging
 import queue
 import re
@@ -9,6 +10,7 @@ import threading
 
 import numpy as np
 import sounddevice as sd
+import soundfile as sf
 from kokoro import KPipeline
 
 from companion.config import KokoroConfig
@@ -123,6 +125,42 @@ class TextToSpeech:
 
         # Sentinel to signal end of this utterance
         self._queue.put(None)
+
+    def synthesize_wav(self, text: str) -> bytes | None:
+        """Synthesise *text* and return WAV bytes (no speaker playback).
+
+        Returns ``None`` if the text is empty after markdown stripping.
+        """
+        clean = _strip_markdown(text)
+        if not clean:
+            return None
+
+        chunks: list[np.ndarray] = []
+        sentences = _split_sentences(clean)
+
+        for sentence in sentences:
+            try:
+                for _graphemes, _phonemes, audio in self._pipeline(
+                    sentence,
+                    voice=self._voice,
+                    speed=self._speed,
+                    split_pattern=None,
+                ):
+                    if audio is not None:
+                        audio_np = audio.cpu().numpy().astype(np.float32)
+                        if audio_np.ndim > 1:
+                            audio_np = audio_np.flatten()
+                        chunks.append(audio_np)
+            except RuntimeError as exc:
+                logger.error("TTS synthesis error: %s", exc)
+
+        if not chunks:
+            return None
+
+        combined = np.concatenate(chunks)
+        buf = io.BytesIO()
+        sf.write(buf, combined, _SAMPLE_RATE, format="WAV")
+        return buf.getvalue()
 
     def interrupt(self) -> None:
         """Stop current playback and discard queued audio."""

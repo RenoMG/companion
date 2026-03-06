@@ -115,3 +115,22 @@ class SpeechToText:
 
         logger.info("Transcribed: %s", text)
         return text
+
+    def transcribe_audio(self, audio: np.ndarray) -> str | None:
+        """Transcribe a pre-recorded audio array (16 kHz float32 mono).
+
+        This bypasses microphone capture — useful for audio uploaded via
+        the web interface.
+        """
+        segments, _ = self._model.transcribe(
+            audio,
+            language=self._language,
+            beam_size=5,
+            vad_filter=True,
+        )
+        text = " ".join(seg.text.strip() for seg in segments).strip()
+        if not text:
+            return None
+
+        logger.info("Transcribed (from file): %s", text)
+        return text

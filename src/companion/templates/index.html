@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Companion</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f9f9f9;
+    --surface: #ffffff;
+    --user-bg: #f0e6db;
+    --user-text: #3d3429;
+    --assistant-bg: #ffffff;
+    --assistant-text: #2d2d2d;
+    --border: #e5e5e5;
+    --muted: #8e8e8e;
+    --accent: #c96442;
+    --input-bg: #ffffff;
+    --header-bg: #ffffff;
+    --code-bg: #f5f5f5;
+    --shadow: rgba(0,0,0,0.06);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--assistant-text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Header */
+  .header {
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .header h1 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--assistant-text);
+  }
+  .header-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    color: var(--muted);
+    font-size: 18px;
+    line-height: 1;
+    transition: background 0.15s, color 0.15s;
+  }
+  .icon-btn:hover { background: var(--border); color: var(--assistant-text); }
+  .icon-btn.active { color: var(--accent); }
+
+  /* Messages area */
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 0;
+    scroll-behavior: smooth;
+  }
+  .messages-inner {
+    max-width: 48rem;
+    margin: 0 auto;
+    padding: 0 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .message {
+    display: flex;
+    flex-direction: column;
+    max-width: 85%;
+    line-height: 1.55;
+    font-size: 15px;
+    animation: fadeIn 0.2s ease;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .message.user {
+    align-self: flex-end;
+  }
+  .message.assistant {
+    align-self: flex-start;
+  }
+  .message-bubble {
+    padding: 10px 16px;
+    border-radius: 18px;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+  .message.user .message-bubble {
+    background: var(--user-bg);
+    color: var(--user-text);
+    border-bottom-right-radius: 4px;
+  }
+  .message.assistant .message-bubble {
+    background: var(--assistant-bg);
+    color: var(--assistant-text);
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 1px 3px var(--shadow);
+  }
+
+  /* Markdown content styles */
+  .message-bubble p { margin: 0.4em 0; }
+  .message-bubble p:first-child { margin-top: 0; }
+  .message-bubble p:last-child { margin-bottom: 0; }
+  .message-bubble code {
+    background: var(--code-bg);
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, monospace;
+  }
+  .message-bubble pre {
+    background: var(--code-bg);
+    padding: 12px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 0.6em 0;
+    font-size: 13px;
+  }
+  .message-bubble pre code {
+    background: none;
+    padding: 0;
+    font-size: inherit;
+  }
+  .message-bubble ul, .message-bubble ol {
+    padding-left: 1.4em;
+    margin: 0.4em 0;
+  }
+  .message-bubble strong { font-weight: 600; }
+  .message-bubble em { font-style: italic; }
+  .message-bubble blockquote {
+    border-left: 3px solid var(--border);
+    padding-left: 12px;
+    color: var(--muted);
+    margin: 0.4em 0;
+  }
+
+  /* Typing indicator */
+  .typing-indicator {
+    display: inline-flex;
+    gap: 4px;
+    padding: 4px 0;
+  }
+  .typing-indicator span {
+    width: 7px;
+    height: 7px;
+    background: var(--muted);
+    border-radius: 50%;
+    animation: bounce 1.2s infinite;
+  }
+  .typing-indicator span:nth-child(2) { animation-delay: 0.15s; }
+  .typing-indicator span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-6px); }
+  }
+
+  /* Input area */
+  .input-area {
+    flex-shrink: 0;
+    background: var(--header-bg);
+    border-top: 1px solid var(--border);
+    padding: 12px 20px 16px;
+  }
+  .input-inner {
+    max-width: 48rem;
+    margin: 0 auto;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    padding: 6px 6px 6px 18px;
+    box-shadow: 0 1px 4px var(--shadow);
+    transition: border-color 0.15s;
+  }
+  .input-inner:focus-within { border-color: var(--accent); }
+  #message-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 15px;
+    font-family: inherit;
+    background: transparent;
+    color: var(--assistant-text);
+    resize: none;
+    max-height: 120px;
+    line-height: 1.45;
+    padding: 6px 0;
+  }
+  #message-input::placeholder { color: var(--muted); }
+
+  .send-btn, .mic-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .send-btn {
+    background: var(--accent);
+    color: white;
+  }
+  .send-btn:hover { filter: brightness(1.1); }
+  .send-btn:active { transform: scale(0.95); }
+  .send-btn:disabled { opacity: 0.4; cursor: default; filter: none; }
+
+  .mic-btn {
+    background: transparent;
+    color: var(--muted);
+  }
+  .mic-btn:hover { background: var(--border); color: var(--assistant-text); }
+  .mic-btn.recording {
+    background: #fee;
+    color: #d33;
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(221,51,51,0.3); }
+    50% { box-shadow: 0 0 0 8px rgba(221,51,51,0); }
+  }
+
+  /* SVG icons */
+  .icon { width: 18px; height: 18px; fill: currentColor; }
+
+  /* Empty state */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--muted);
+    gap: 8px;
+    padding: 40px;
+    text-align: center;
+  }
+  .empty-state h2 { font-size: 20px; font-weight: 500; color: var(--assistant-text); }
+  .empty-state p { font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1 id="companion-name">Companion</h1>
+  <div class="header-controls">
+    <button class="icon-btn" id="tts-toggle" title="Toggle voice output">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 8.5v7a4.49 4.49 0 002.5-3.5zM14 3.23v2.06a6.5 6.5 0 010 13.42v2.06A8.5 8.5 0 0014 3.23z"/></svg>
+    </button>
+  </div>
+</div>
+
+<div class="messages" id="messages">
+  <div class="messages-inner" id="messages-inner">
+    <div class="empty-state" id="empty-state">
+      <h2>Start a conversation</h2>
+      <p>Type a message or use the microphone to begin.</p>
+    </div>
+  </div>
+</div>
+
+<div class="input-area">
+  <div class="input-inner">
+    <textarea id="message-input" rows="1" placeholder="Message Companion..." autocomplete="off"></textarea>
+    <button class="mic-btn" id="mic-btn" title="Voice input">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M12 14a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3zm-1-9a1 1 0 012 0v6a1 1 0 01-2 0V5zm6 6a5 5 0 01-10 0H5a7 7 0 0014 0h-2zm-5 9a1 1 0 01-1-1v-1.07A7.007 7.007 0 015 11H3a9.008 9.008 0 008 8.93V21a1 1 0 011 1h0a1 1 0 01-1 1h0z"/></svg>
+    </button>
+    <button class="send-btn" id="send-btn" title="Send message" disabled>
+      <svg class="icon" viewBox="0 0 24 24" style="fill:white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+(function() {
+  const messagesContainer = document.getElementById('messages');
+  const messagesInner = document.getElementById('messages-inner');
+  const emptyState = document.getElementById('empty-state');
+  const input = document.getElementById('message-input');
+  const sendBtn = document.getElementById('send-btn');
+  const micBtn = document.getElementById('mic-btn');
+  const ttsToggle = document.getElementById('tts-toggle');
+  const companionName = document.getElementById('companion-name');
+
+  let isStreaming = false;
+  let ttsEnabled = false;
+  let mediaRecorder = null;
+  let isRecording = false;
+
+  // --- Init ---
+  fetch('/api/config').then(r => r.json()).then(cfg => {
+    companionName.textContent = cfg.companion_name || 'Companion';
+    document.title = cfg.companion_name || 'Companion';
+    input.placeholder = `Message ${cfg.companion_name || 'Companion'}...`;
+  });
+
+  fetch('/api/history').then(r => r.json()).then(messages => {
+    if (messages.length > 0) {
+      emptyState.remove();
+      messages.forEach(m => appendMessage(m.role, m.content));
+      scrollToBottom();
+    }
+  });
+
+  // --- Markdown renderer (lightweight) ---
+  function renderMarkdown(text) {
+    let html = text
+      // Code blocks
+      .replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
+        `<pre><code>${escapeHtml(code.trim())}</code></pre>`)
+      // Inline code
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      // Bold
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      // Italic
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      // Blockquote
+      .replace(/^>\s*(.+)$/gm, '<blockquote>$1</blockquote>')
+      // Unordered list items
+      .replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>')
+      // Ordered list items
+      .replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>');
+
+    // Wrap consecutive <li> in <ul>
+    html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+
+    // Paragraphs: split on double newlines, wrap non-block content
+    html = html.split(/\n\n+/).map(block => {
+      block = block.trim();
+      if (!block) return '';
+      if (/^<(pre|ul|ol|blockquote|li)/.test(block)) return block;
+      return `<p>${block.replace(/\n/g, '<br>')}</p>`;
+    }).join('');
+
+    return html;
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // --- Message rendering ---
+  function appendMessage(role, content, streaming) {
+    if (emptyState && emptyState.parentNode) emptyState.remove();
+    const wrapper = document.createElement('div');
+    wrapper.className = `message ${role}`;
+    const bubble = document.createElement('div');
+    bubble.className = 'message-bubble';
+    if (streaming) {
+      bubble.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+    } else {
+      bubble.innerHTML = role === 'user' ? escapeHtml(content).replace(/\n/g, '<br>') : renderMarkdown(content);
+    }
+    wrapper.appendChild(bubble);
+    messagesInner.appendChild(wrapper);
+    scrollToBottom();
+    return bubble;
+  }
+
+  function scrollToBottom() {
+    requestAnimationFrame(() => {
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    });
+  }
+
+  // --- Send message ---
+  async function sendMessage(text) {
+    if (!text.trim() || isStreaming) return;
+    isStreaming = true;
+    sendBtn.disabled = true;
+    input.value = '';
+    autoResize();
+
+    appendMessage('user', text);
+    const bubble = appendMessage('assistant', '', true);
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({message: text})
+      });
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullResponse = '';
+      let buffer = '';
+
+      bubble.innerHTML = '';
+
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, {stream: true});
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.done) break;
+            if (data.chunk) {
+              fullResponse += data.chunk;
+              bubble.innerHTML = renderMarkdown(fullResponse);
+              scrollToBottom();
+            }
+          } catch (e) { /* ignore parse errors */ }
+        }
+      }
+
+      // Final render
+      if (fullResponse) {
+        bubble.innerHTML = renderMarkdown(fullResponse);
+      }
+
+      // TTS if enabled
+      if (ttsEnabled && fullResponse) {
+        playTTS(fullResponse);
+      }
+    } catch (err) {
+      bubble.innerHTML = `<p style="color:#d33">Error: ${escapeHtml(err.message)}</p>`;
+    } finally {
+      isStreaming = false;
+      sendBtn.disabled = !input.value.trim();
+    }
+  }
+
+  // --- TTS playback ---
+  async function playTTS(text) {
+    try {
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text})
+      });
+      if (!response.ok) return;
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.onended = () => URL.revokeObjectURL(url);
+      audio.play();
+    } catch (e) {
+      console.error('TTS playback failed:', e);
+    }
+  }
+
+  // --- Mic input ---
+  micBtn.addEventListener('click', async () => {
+    if (isRecording) {
+      mediaRecorder.stop();
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+      const chunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        isRecording = false;
+        micBtn.classList.remove('recording');
+        stream.getTracks().forEach(t => t.stop());
+
+        const blob = new Blob(chunks, {type: mediaRecorder.mimeType});
+        const formData = new FormData();
+        formData.append('audio', blob, 'recording.webm');
+
+        micBtn.disabled = true;
+        try {
+          const resp = await fetch('/api/transcribe', {method: 'POST', body: formData});
+          const data = await resp.json();
+          if (data.text && data.text.trim()) {
+            sendMessage(data.text.trim());
+          }
+        } catch (e) {
+          console.error('Transcription failed:', e);
+        } finally {
+          micBtn.disabled = false;
+        }
+      };
+
+      mediaRecorder.start();
+      isRecording = true;
+      micBtn.classList.add('recording');
+    } catch (e) {
+      console.error('Mic access denied:', e);
+    }
+  });
+
+  // --- TTS toggle ---
+  ttsToggle.addEventListener('click', () => {
+    ttsEnabled = !ttsEnabled;
+    ttsToggle.classList.toggle('active', ttsEnabled);
+  });
+
+  // --- Input handling ---
+  input.addEventListener('input', () => {
+    sendBtn.disabled = !input.value.trim() || isStreaming;
+    autoResize();
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (input.value.trim() && !isStreaming) sendMessage(input.value);
+    }
+  });
+
+  sendBtn.addEventListener('click', () => {
+    if (input.value.trim() && !isStreaming) sendMessage(input.value);
+  });
+
+  function autoResize() {
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+  }
+})();
+</script>
+</body>
+</html>
