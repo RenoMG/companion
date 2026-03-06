@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+import io
 import json
 import logging
-import subprocess
-import tempfile
 import threading
 from pathlib import Path
 
 import numpy as np
+import soundfile as sf
 from flask import Flask, Response, jsonify, request, send_from_directory
 
 from companion.config import CompanionConfig, load_config
@@ -57,7 +57,7 @@ def create_app(config: CompanionConfig | None = None) -> Flask:
         logger.info("Loading speech-to-text model …")
         state["stt"] = SpeechToText(config.whisper)
         logger.info("Loading text-to-speech model …")
-        state["tts"] = TextToSpeech(config.kokoro)
+        state["tts"] = TextToSpeech(config.kokoro, playback=False)
         logger.info("All components initialised.")
 
     # ------------------------------------------------------------------
@@ -143,35 +143,24 @@ def create_app(config: CompanionConfig | None = None) -> Flask:
         audio_file = request.files["audio"]
         stt: SpeechToText = _get("stt")
 
-        # Save uploaded audio to a temp file.
-        with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
-            audio_file.save(tmp)
-            tmp_path = tmp.name
-
         try:
-            # Convert to 16 kHz mono float32 via ffmpeg.
-            result = subprocess.run(
-                [
-                    "ffmpeg", "-y", "-i", tmp_path,
-                    "-ar", "16000", "-ac", "1", "-f", "f32le", "pipe:1",
-                ],
-                capture_output=True,
-                timeout=30,
-            )
-            if result.returncode != 0:
-                logger.error("ffmpeg error: %s", result.stderr.decode(errors="replace"))
-                return jsonify({"error": "Audio conversion failed"}), 500
+            audio_buf = io.BytesIO(audio_file.read())
+            audio, _sample_rate = sf.read(audio_buf, dtype="float32")
+        except Exception as exc:
+            logger.error("Failed to read audio: %s", exc)
+            return jsonify({"error": "Audio conversion failed"}), 500
 
-            audio = np.frombuffer(result.stdout, dtype=np.float32)
-            if audio.size == 0:
-                return jsonify({"text": ""})
+        # Ensure mono.
+        if audio.ndim > 1:
+            audio = audio.mean(axis=1)
 
-            with _stt_lock:
-                text = stt.transcribe_audio(audio)
+        if audio.size == 0:
+            return jsonify({"text": ""})
 
-            return jsonify({"text": text or ""})
-        finally:
-            Path(tmp_path).unlink(missing_ok=True)
+        with _stt_lock:
+            text = stt.transcribe_audio(audio)
+
+        return jsonify({"text": text or ""})
 
     @app.route("/api/tts", methods=["POST"])
     def tts():

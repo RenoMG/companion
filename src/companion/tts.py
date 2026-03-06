@@ -50,7 +50,7 @@ def _split_sentences(text: str) -> list[str]:
 class TextToSpeech:
     """Kokoro TTS with a background playback thread."""
 
-    def __init__(self, config: KokoroConfig) -> None:
+    def __init__(self, config: KokoroConfig, playback: bool = True) -> None:
         self._voice = config.voice
         self._speed = config.speed
         lang_code = config.voice[0]
@@ -62,15 +62,21 @@ class TextToSpeech:
         )
         self._pipeline = KPipeline(lang_code=lang_code, device=config.device)
 
-        self._queue: queue.Queue[np.ndarray | None] = queue.Queue()
-        self._speaking = threading.Event()
-        self._running = True
-
-        self._worker = threading.Thread(
-            target=self._playback_worker, daemon=True
-        )
-        self._worker.start()
-        logger.info("TTS playback worker started.")
+        if playback:
+            self._queue: queue.Queue[np.ndarray | None] = queue.Queue()
+            self._speaking = threading.Event()
+            self._running = True
+            self._worker = threading.Thread(
+                target=self._playback_worker, daemon=True
+            )
+            self._worker.start()
+            logger.info("TTS playback worker started.")
+        else:
+            self._queue = None
+            self._speaking = None
+            self._running = False
+            self._worker = None
+            logger.info("TTS initialised (synthesis only, no speaker playback).")
 
     def _playback_worker(self) -> None:
         """Drain the audio queue and play each chunk through the speakers."""
@@ -101,6 +107,8 @@ class TextToSpeech:
 
     def speak(self, text: str) -> None:
         """Synthesise *text* sentence-by-sentence and queue audio for playback."""
+        if self._worker is None:
+            return
         clean = _strip_markdown(text)
         if not clean:
             return
@@ -164,6 +172,8 @@ class TextToSpeech:
 
     def interrupt(self) -> None:
         """Stop current playback and discard queued audio."""
+        if self._worker is None:
+            return
         sd.stop()
         # Drain the queue
         while True:
@@ -175,10 +185,14 @@ class TextToSpeech:
 
     def is_speaking(self) -> bool:
         """Return ``True`` if audio is playing or queued."""
+        if self._worker is None:
+            return False
         return self._speaking.is_set() or not self._queue.empty()
 
     def stop(self) -> None:
         """Shut down the playback worker."""
+        if self._worker is None:
+            return
         self.interrupt()
         self._running = False
         self._worker.join(timeout=2.0)
