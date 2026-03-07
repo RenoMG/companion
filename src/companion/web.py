@@ -7,6 +7,8 @@ import contextlib
 import io
 import json
 import logging
+import os
+import signal
 import threading
 import time
 from pathlib import Path
@@ -158,11 +160,13 @@ class RuntimeState:
         self._stt_lock = threading.Lock()
         self._tts_lock = threading.Lock()
         self._summarising = threading.Event()
+        self._cleanup_lock = threading.Lock()
         self._started_at = time.time()
         self._phase = "idle"
         self._phase_changed_at = self._started_at
         self._last_user_message = ""
         self._last_response = ""
+        self._cleaned_up = False
         self._session_usage = {
             "prompt_tokens": 0,
             "completion_tokens": 0,
@@ -358,6 +362,11 @@ class RuntimeState:
 
     def cleanup(self) -> None:
         """Summarise session messages and close open resources."""
+        with self._cleanup_lock:
+            if self._cleaned_up:
+                return
+            self._cleaned_up = True
+
         with self.operation():
             self._wait_for_summarisation()
 
@@ -625,6 +634,22 @@ def create_app(config: CompanionConfig | None = None) -> Flask:
             return jsonify({"error": "Synthesis produced no audio"}), 500
 
         return Response(wav_bytes, mimetype="audio/wav")
+
+    @app.route("/api/shutdown", methods=["POST"])
+    def shutdown():
+        shutdown_func = request.environ.get("werkzeug.server.shutdown")
+
+        def stop_server() -> None:
+            time.sleep(0.2)
+            runtime.set_phase("shutting_down")
+            runtime.cleanup()
+            if callable(shutdown_func):
+                shutdown_func()
+                return
+            os.kill(os.getpid(), signal.SIGINT)
+
+        threading.Thread(target=stop_server, daemon=True).start()
+        return jsonify({"status": "shutting_down"})
 
     atexit.register(runtime.cleanup)
 

@@ -26,6 +26,7 @@
 
   body {
     min-height: 100vh;
+    height: 100vh;
     background:
       linear-gradient(180deg, rgba(255,255,255,0.02) 0, rgba(255,255,255,0) 60%),
       radial-gradient(circle at top left, rgba(117,247,255,0.08), transparent 32%),
@@ -78,6 +79,7 @@
   .app-shell {
     position: relative;
     min-height: 100vh;
+    height: 100vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -131,10 +133,22 @@
     letter-spacing: 0.14em;
   }
 
+  .shutdown-btn {
+    color: var(--danger);
+    border-color: rgba(255,115,100,0.45);
+  }
+
+  .shutdown-btn.active,
+  .shutdown-btn:hover {
+    background: rgba(255,115,100,0.14);
+  }
+
   .view {
     display: none;
     flex: 1;
     min-height: 0;
+    width: 100%;
+    overflow: hidden;
   }
 
   .view.active {
@@ -142,9 +156,11 @@
   }
 
   .dashboard {
+    width: 100%;
     min-height: 0;
     padding: 16px;
     gap: 16px;
+    overflow: hidden;
   }
 
   .main-grid {
@@ -152,11 +168,13 @@
     grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.9fr);
     gap: 16px;
     width: 100%;
+    flex: 1;
     min-height: 0;
   }
 
   .stack {
     display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
     gap: 16px;
     min-height: 0;
   }
@@ -168,6 +186,7 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
 
   .panel-header {
@@ -209,57 +228,48 @@
       linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)),
       rgba(8, 12, 15, 0.88);
     overflow: hidden;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
-  .brain-shell::before, .brain-shell::after {
-    content: "";
-    position: absolute;
-    inset: 14% 16%;
-    border: 1px solid rgba(117, 247, 255, 0.16);
-    filter: drop-shadow(0 0 14px rgba(117,247,255,0.08));
+  .brain-ascii {
+    width: 100%;
+    height: 100%;
+    display: grid;
+    place-items: center;
+    padding: 8px;
+    overflow: auto;
+    color: var(--cyan);
+    text-shadow: 0 0 12px rgba(117,247,255,0.22);
+    font-size: clamp(9px, 1.2vw, 13px);
+    line-height: 1.15;
+    letter-spacing: 0.03em;
+    white-space: pre;
   }
 
-  .brain-shell::before {
-    clip-path: polygon(18% 10%, 82% 10%, 94% 32%, 86% 74%, 70% 90%, 30% 90%, 14% 74%, 6% 32%);
+  .brain-ascii.phase-thinking {
+    color: var(--amber);
+    text-shadow: 0 0 16px rgba(255,180,77,0.24);
   }
 
-  .brain-shell::after {
-    inset: 18% 24%;
-    clip-path: polygon(24% 4%, 76% 4%, 88% 22%, 80% 76%, 66% 94%, 34% 94%, 20% 76%, 12% 22%);
+  .brain-ascii.phase-responding {
+    color: var(--lime);
+    text-shadow: 0 0 16px rgba(175,255,97,0.22);
   }
 
-  .brain-node {
-    position: absolute;
-    width: 16px;
-    height: 16px;
-    border: 1px solid var(--line-bright);
-    background: #11181d;
-    box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
-    transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  .brain-ascii.phase-listening {
+    color: var(--cyan);
   }
 
-  .brain-node.active-cyan {
-    background: var(--cyan);
-    border-color: var(--cyan);
-    box-shadow: 0 0 14px rgba(117,247,255,0.78);
+  .brain-ascii.phase-speaking {
+    color: var(--amber);
   }
 
-  .brain-node.active-amber {
-    background: var(--amber);
-    border-color: var(--amber);
-    box-shadow: 0 0 14px rgba(255,180,77,0.78);
-  }
-
-  .brain-node.active-lime {
-    background: var(--lime);
-    border-color: var(--lime);
-    box-shadow: 0 0 14px rgba(175,255,97,0.7);
-  }
-
-  .brain-line {
-    position: absolute;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(117,247,255,0.24), transparent);
+  .brain-ascii.phase-shutting_down {
+    color: var(--danger);
+    text-shadow: 0 0 16px rgba(255,115,100,0.22);
   }
 
   .status-rail {
@@ -329,6 +339,8 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
+    flex: 1;
+    overflow: hidden;
   }
 
   .mode-switch {
@@ -346,6 +358,7 @@
     gap: 12px;
     min-height: 0;
     flex: 1;
+    overflow: hidden;
   }
 
   .chat-view.active, .voice-view.active {
@@ -354,7 +367,7 @@
 
   .chat-log {
     flex: 1;
-    min-height: 260px;
+    min-height: 0;
     overflow-y: auto;
     border: 1px solid var(--line);
     background: rgba(9, 14, 17, 0.92);
@@ -431,8 +444,28 @@
     padding: 16px;
     display: grid;
     gap: 14px;
-    min-height: 260px;
+    min-height: 0;
+    height: 100%;
     align-content: start;
+    overflow-y: auto;
+  }
+
+  .voice-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .voice-toggle-btn.active {
+    color: var(--bg);
+    background: var(--lime);
+    border-color: var(--lime);
+  }
+
+  .voice-hint {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.6;
   }
 
   .voice-status {
@@ -511,6 +544,7 @@
     gap: 10px;
     line-height: 1.6;
     font-size: 13px;
+    overflow-y: auto;
   }
 
   .meta-row {
@@ -650,30 +684,6 @@
     border-color: var(--amber);
   }
 
-  .brain-node:nth-child(1) { top: 17%; left: 36%; }
-  .brain-node:nth-child(2) { top: 18%; left: 52%; }
-  .brain-node:nth-child(3) { top: 24%; left: 28%; }
-  .brain-node:nth-child(4) { top: 24%; left: 60%; }
-  .brain-node:nth-child(5) { top: 32%; left: 20%; }
-  .brain-node:nth-child(6) { top: 32%; left: 44%; }
-  .brain-node:nth-child(7) { top: 32%; left: 68%; }
-  .brain-node:nth-child(8) { top: 42%; left: 26%; }
-  .brain-node:nth-child(9) { top: 42%; left: 52%; }
-  .brain-node:nth-child(10) { top: 42%; left: 74%; }
-  .brain-node:nth-child(11) { top: 56%; left: 24%; }
-  .brain-node:nth-child(12) { top: 56%; left: 46%; }
-  .brain-node:nth-child(13) { top: 56%; left: 68%; }
-  .brain-node:nth-child(14) { top: 70%; left: 34%; }
-  .brain-node:nth-child(15) { top: 70%; left: 56%; }
-  .brain-node:nth-child(16) { top: 80%; left: 46%; }
-
-  .brain-line.line-1 { top: 20%; left: 38%; width: 18%; }
-  .brain-line.line-2 { top: 27%; left: 29%; width: 30%; }
-  .brain-line.line-3 { top: 35%; left: 22%; width: 50%; }
-  .brain-line.line-4 { top: 45%; left: 26%; width: 51%; }
-  .brain-line.line-5 { top: 59%; left: 24%; width: 45%; }
-  .brain-line.line-6 { top: 73%; left: 35%; width: 24%; }
-
   @media (max-width: 1100px) {
     .main-grid, .brain-layout, .settings-form {
       grid-template-columns: 1fr;
@@ -691,10 +701,17 @@
   @media (max-width: 760px) {
     body {
       overflow: auto;
+      height: auto;
     }
 
     .app-shell {
       min-height: auto;
+      height: auto;
+      overflow: visible;
+    }
+
+    .view, .dashboard {
+      overflow: visible;
     }
 
     .topbar, .dashboard, .settings {
@@ -715,7 +732,15 @@
       grid-template-columns: 1fr;
     }
 
+    .right-rail {
+      grid-template-rows: auto auto;
+    }
+
     .composer {
+      grid-template-columns: 1fr;
+    }
+
+    .voice-controls {
       grid-template-columns: 1fr;
     }
 
@@ -746,6 +771,7 @@
       </div>
 
       <button class="action-btn" id="tts-btn">Voice Playback: On</button>
+      <button class="action-btn shutdown-btn" id="shutdown-btn">Shutdown</button>
       <div class="topbar-note" id="connection-pill">LLM link pending</div>
     </div>
   </header>
@@ -761,28 +787,7 @@
 
           <div class="brain-layout">
             <div class="brain-shell" id="brain-shell">
-              <div class="brain-line line-1"></div>
-              <div class="brain-line line-2"></div>
-              <div class="brain-line line-3"></div>
-              <div class="brain-line line-4"></div>
-              <div class="brain-line line-5"></div>
-              <div class="brain-line line-6"></div>
-              <div class="brain-node"></div>
-              <div class="brain-node"></div>
-              <div class="brain-node"></div>
-              <div class="brain-node"></div>
-              <div class="brain-node"></div>
-              <div class="brain-node"></div>
-              <div class="brain-node"></div>
-              <div class="brain-node"></div>
-              <div class="brain-node"></div>
-              <div class="brain-node"></div>
-              <div class="brain-node"></div>
-              <div class="brain-node"></div>
-              <div class="brain-node"></div>
-              <div class="brain-node"></div>
-              <div class="brain-node"></div>
-              <div class="brain-node"></div>
+              <pre class="brain-ascii phase-idle" id="brain-ascii" aria-label="ASCII brain visualizer"></pre>
             </div>
 
             <div class="status-rail">
@@ -846,7 +851,11 @@
             <section class="voice-view" id="voice-view">
               <div class="voice-box">
                 <div class="voice-status" id="voice-status">Voice box armed</div>
-                <button class="record-btn" id="record-btn">Start Recording</button>
+                <div class="voice-controls">
+                  <button class="voice-toggle-btn" id="voice-auto-btn">Hands-Free: Off</button>
+                  <button class="record-btn" id="record-btn">Start Recording</button>
+                </div>
+                <div class="voice-hint" id="voice-hint">Manual mode records only when you press the button. Turn hands-free on to auto-listen, stop on silence, transcribe, send, and speak the reply.</div>
                 <div class="voice-transcript">
                   <span class="message-label">Transcript</span>
                   <div id="voice-transcript-text">No voice capture yet.</div>
@@ -1056,13 +1065,25 @@
     interactionMode: 'text',
     isStreaming: false,
     isRecording: false,
+    isTranscribing: false,
+    handsFreeEnabled: false,
+    recordingMode: null,
     audio: null,
     audioUrl: null,
     mediaRecorder: null,
     mediaStream: null,
     recordedChunks: [],
+    audioContext: null,
+    analyser: null,
+    silenceFrame: null,
+    speechDetected: false,
+    silenceStartedAt: 0,
+    recordingStartedAt: 0,
     voiceQueue: [],
     brainTimer: null,
+    brainFrame: 0,
+    statsTimer: null,
+    shutdownRequested: false,
   };
 
   const els = {
@@ -1077,6 +1098,7 @@
     connectionPill: document.getElementById('connection-pill'),
     phaseReadout: document.getElementById('phase-readout'),
     brainStatusText: document.getElementById('brain-status-text'),
+    brainAscii: document.getElementById('brain-ascii'),
     lastUserText: document.getElementById('last-user-text'),
     lastResponseText: document.getElementById('last-response-text'),
     signalPhase: document.getElementById('signal-phase'),
@@ -1088,11 +1110,12 @@
     chatLog: document.getElementById('chat-log'),
     messageInput: document.getElementById('message-input'),
     sendBtn: document.getElementById('send-btn'),
+    voiceAutoBtn: document.getElementById('voice-auto-btn'),
     recordBtn: document.getElementById('record-btn'),
     voiceStatus: document.getElementById('voice-status'),
+    voiceHint: document.getElementById('voice-hint'),
     voiceTranscriptText: document.getElementById('voice-transcript-text'),
     voiceResponseText: document.getElementById('voice-response-text'),
-    brainShell: document.getElementById('brain-shell'),
     statTotalTokens: document.getElementById('stat-total-tokens'),
     statSessionTokens: document.getElementById('stat-session-tokens'),
     statMessages: document.getElementById('stat-messages'),
@@ -1107,9 +1130,167 @@
     settingsForm: document.getElementById('settings-form'),
     settingsStatus: document.getElementById('settings-status'),
     saveSettingsBtn: document.getElementById('save-settings-btn'),
+    shutdownBtn: document.getElementById('shutdown-btn'),
   };
 
-  const brainNodes = Array.from(document.querySelectorAll('.brain-node'));
+  const ASCII_BRAIN_FRAMES = {
+    idle: [
+`             .-""""-.
+          .-'  .--.  '-.
+        .'   .'_  _'.   '.
+       /   .'  \\/  '.    \\
+      ;   /  .-====-. \\   ;
+      |  |  /  .--.  \\ |  |
+      ;   \\ |  |  |  | /   ;
+       \\   '.\\ '--' /. '  /
+        '.    '-..-'    .'
+          '-._      _.-'
+               '----'
+          [idle] signal: ..`,
+`             .-""""-.
+          .-'  .--.  '-.
+        .'   .'_  _'.   '.
+       /   .'  /\\  '.    \\
+      ;   /  .-====-. \\   ;
+      |  |  /  .--.  \\ |  |
+      ;   \\ |  |  |  | /   ;
+       \\   '.\\ '--' /. '  /
+        '.    '-..-'    .'
+          '-._      _.-'
+               '----'
+          [idle] signal: :.`
+    ],
+    thinking: [
+`             .-""""-.
+          .-'  .--.  '-.
+        .'   .'.--.'.   '.
+       /   .' / /\\ \\ '.  \\
+      ;   /  | |##| |  \\  ;
+      |  |   | |##| |   | |
+      ;   \\  | |##| |  /  ;
+       \\   '. \\_\\/_/ .'  /
+        '.    '-..-'    .'
+          '-._ /||\\ _.-'
+               '||'
+       [thinking] parse:::`,
+`             .-""""-.
+          .-'  .--.  '-.
+        .'   .'.--.'.   '.
+       /   .' / /\\ \\ '.  \\
+      ;   /  | |@@| |  \\  ;
+      |  |   | |@@| |   | |
+      ;   \\  | |@@| |  /  ;
+       \\   '. \\_\\/_/ .'  /
+        '.    '-..-'    .'
+          '-._ /||\\ _.-'
+               '||'
+       [thinking] parse:.:`
+    ],
+    responding: [
+`             .-""""-.
+          .-'  .--.  '-.
+        .'   .'_.._'.   '.
+       /   .' /====\\ '.  \\
+      ;   /  | >>>< |  \\  ;
+      |  |   | >>>< |   | |
+      ;   \\  | >>>< |  /  ;
+       \\   '. \\====/ .'  /
+        '.    '-..-'    .'
+          '-._  ||  _.-'
+             __/  \\__
+      [responding] >>>>>>>`,
+`             .-""""-.
+          .-'  .--.  '-.
+        .'   .'_.._'.   '.
+       /   .' /====\\ '.  \\
+      ;   /  | <<< <|  \\  ;
+      |  |   | <<< <|   | |
+      ;   \\  | <<< <|  /  ;
+       \\   '. \\====/ .'  /
+        '.    '-..-'    .'
+          '-._  ||  _.-'
+             __/  \\__
+      [responding] <<<<<<<`
+    ],
+    listening: [
+`             .-""""-.
+          .-'  .--.  '-.
+        .'   .'_  _'.   '.
+       /   .'  \\/  '.    \\
+      ;   /  .-====-. \\   ;
+      |  |  | ((  )) | |  |
+      ;   \\ |  ====  | /   ;
+       \\   '.\\_...._/. '  /
+        '.     /||\\     .'
+          '-._/ || \\_.-'
+               /  \\
+      [listening] mic:::`,
+`             .-""""-.
+          .-'  .--.  '-.
+        .'   .'_  _'.   '.
+       /   .'  /\\  '.    \\
+      ;   /  .-====-. \\   ;
+      |  |  | ((  )) | |  |
+      ;   \\ |  ====  | /   ;
+       \\   '.\\_...._/. '  /
+        '.     /||\\     .'
+          '-._/ || \\_.-'
+               /  \\
+      [listening] mic:.:`
+    ],
+    speaking: [
+`             .-""""-.
+          .-'  .--.  '-.
+        .'   .'_.._'.   '.
+       /   .' /====\\ '.  \\
+      ;   /  |  oo  |  \\  ;
+      |  |   | \\__/ |   | |
+      ;   \\  | /~~\\ |  /  ;
+       \\   '. \\====/ .'  /
+        '.    '-..-'    .'
+          '-._  ||  _.-'
+             )) || ((
+       [speaking] audio:::`,
+`             .-""""-.
+          .-'  .--.  '-.
+        .'   .'_.._'.   '.
+       /   .' /====\\ '.  \\
+      ;   /  |  oo  |  \\  ;
+      |  |   | \\__/ |   | |
+      ;   \\  | /~~\\ |  /  ;
+       \\   '. \\====/ .'  /
+        '.    '-..-'    .'
+          '-._  ||  _.-'
+             )) || ((
+       [speaking] audio:.:`
+    ],
+    shutting_down: [
+`             .-""""-.
+          .-'  .--.  '-.
+        .'   .'_xx_'.   '.
+       /   .' /====\\ '.  \\
+      ;   /  | xxxx |  \\  ;
+      |  |   | xxxx |   | |
+      ;   \\  | xxxx |  /  ;
+       \\   '. \\====/ .'  /
+        '.    '-..-'    .'
+          '-._      _.-'
+               '----'
+      [shutdown] draining...`,
+`             .-""""-.
+          .-'  .--.  '-.
+        .'   .'_--_'.   '.
+       /   .' /====\\ '.  \\
+      ;   /  | ---- |  \\  ;
+      |  |   | ---- |   | |
+      ;   \\  | ---- |  /  ;
+       \\   '. \\====/ .'  /
+        '.    '-..-'    .'
+          '-._      _.-'
+               '----'
+      [shutdown] draining:::`
+    ],
+  };
 
   function escapeHtml(text) {
     return text
@@ -1161,7 +1342,7 @@
     els.settingsTab.classList.toggle('active', !showDashboard);
   }
 
-  function setInteractionMode(mode) {
+  async function setInteractionMode(mode) {
     state.interactionMode = mode;
     const isChat = mode === 'text';
     els.chatView.classList.toggle('active', isChat);
@@ -1169,10 +1350,11 @@
     els.chatModeBtn.classList.toggle('active', isChat);
     els.voiceModeBtn.classList.toggle('active', !isChat);
     els.interactionCaption.textContent = isChat ? 'Text chat online' : 'Voice box online';
+    await syncHandsFreeState();
   }
 
   function updateComposerState() {
-    const canSend = !state.isStreaming && Boolean(els.messageInput.value.trim());
+    const canSend = !state.isStreaming && !state.shutdownRequested && Boolean(els.messageInput.value.trim());
     els.sendBtn.disabled = !canSend;
   }
 
@@ -1205,6 +1387,7 @@
       responding: 'Tokens are flowing through the response channel.',
       listening: 'Browser audio is being converted into text.',
       speaking: 'Synthesized voice playback is active.',
+      shutting_down: 'Graceful shutdown has been requested.',
     };
     return map[phase] || 'System state unknown.';
   }
@@ -1215,40 +1398,26 @@
     els.phaseReadout.textContent = normalized.toUpperCase();
     els.signalPhase.textContent = normalized.toUpperCase();
     els.brainStatusText.textContent = phaseCopy(normalized);
+    renderBrainFrame();
   }
 
-  function pulseBrain() {
+  function renderBrainFrame() {
     const phase = state.phase || 'idle';
-    const schemes = {
-      idle: { count: 2, colors: ['active-cyan'] },
-      thinking: { count: 5, colors: ['active-amber', 'active-cyan'] },
-      responding: { count: 8, colors: ['active-cyan', 'active-lime'] },
-      listening: { count: 6, colors: ['active-cyan'] },
-      speaking: { count: 7, colors: ['active-amber', 'active-lime'] },
-    };
-    const scheme = schemes[phase] || schemes.idle;
-
-    brainNodes.forEach((node) => {
-      node.classList.remove('active-cyan', 'active-amber', 'active-lime');
-    });
-
-    const activeIndexes = new Set();
-    while (activeIndexes.size < scheme.count) {
-      activeIndexes.add(Math.floor(Math.random() * brainNodes.length));
-    }
-
-    Array.from(activeIndexes).forEach((index, offset) => {
-      const color = scheme.colors[offset % scheme.colors.length];
-      brainNodes[index].classList.add(color);
-    });
+    const frames = ASCII_BRAIN_FRAMES[phase] || ASCII_BRAIN_FRAMES.idle;
+    const frame = frames[state.brainFrame % frames.length];
+    els.brainAscii.className = `brain-ascii phase-${phase.replace(/[^a-z0-9]+/gi, '_')}`;
+    els.brainAscii.textContent = frame;
   }
 
   function startBrainLoop() {
     if (state.brainTimer) {
       window.clearInterval(state.brainTimer);
     }
-    pulseBrain();
-    state.brainTimer = window.setInterval(pulseBrain, 320);
+    renderBrainFrame();
+    state.brainTimer = window.setInterval(() => {
+      state.brainFrame = (state.brainFrame + 1) % 1000;
+      renderBrainFrame();
+    }, 420);
   }
 
   function updateStats(stats) {
@@ -1280,6 +1449,39 @@
     els.lastUserText.textContent = stats.last_user_message || 'No message yet.';
     els.lastResponseText.textContent = stats.last_response_preview || 'No response yet.';
     els.voiceResponseText.textContent = stats.last_response_preview || 'No response yet.';
+  }
+
+  function stopAudioPlayback() {
+    if (state.audio) {
+      state.audio.pause();
+      state.audio = null;
+    }
+    if (state.audioUrl) {
+      URL.revokeObjectURL(state.audioUrl);
+      state.audioUrl = null;
+    }
+  }
+
+  function updateVoiceControls() {
+    els.voiceAutoBtn.classList.toggle('active', state.handsFreeEnabled);
+    els.voiceAutoBtn.textContent = `Hands-Free: ${state.handsFreeEnabled ? 'On' : 'Off'}`;
+    els.voiceAutoBtn.disabled = state.shutdownRequested;
+
+    const handsFreeRecording = state.isRecording && state.recordingMode === 'handsfree';
+    els.recordBtn.disabled = state.shutdownRequested || state.isTranscribing || handsFreeRecording || state.handsFreeEnabled;
+    els.recordBtn.classList.toggle('recording', state.isRecording);
+
+    if (handsFreeRecording) {
+      els.recordBtn.textContent = 'Listening...';
+    } else if (state.isRecording) {
+      els.recordBtn.textContent = 'Stop Recording';
+    } else {
+      els.recordBtn.textContent = 'Start Recording';
+    }
+
+    els.voiceHint.textContent = state.handsFreeEnabled
+      ? 'Hands-free is live. Speak naturally, pause to submit, then wait for the spoken reply before the mic re-arms.'
+      : 'Manual mode records only when you press the button. Turn hands-free on to auto-listen, stop on silence, transcribe, send, and speak the reply.';
   }
 
   function populateSettingsForm(settings) {
@@ -1321,17 +1523,12 @@
   }
 
   async function playTTS(text) {
-    if (!state.ttsEnabled || !text) {
+    if (!state.ttsEnabled || !text || state.shutdownRequested) {
       return;
     }
 
     try {
-      if (state.audio) {
-        state.audio.pause();
-      }
-      if (state.audioUrl) {
-        URL.revokeObjectURL(state.audioUrl);
-      }
+      stopAudioPlayback();
 
       const response = await fetch('/api/tts', {
         method: 'POST',
@@ -1348,18 +1545,22 @@
       state.audio = new Audio(state.audioUrl);
       setPhase('speaking');
       await state.audio.play();
-      state.audio.onended = () => {
-        if (state.stats) {
-          setPhase(state.stats.phase);
-        }
-      };
+      await new Promise((resolve, reject) => {
+        state.audio.onended = resolve;
+        state.audio.onerror = reject;
+      });
+      if (state.stats) {
+        setPhase(state.stats.phase);
+      }
     } catch (error) {
       console.error('TTS failed', error);
+    } finally {
+      stopAudioPlayback();
     }
   }
 
   async function flushVoiceQueue() {
-    if (state.isStreaming || state.voiceQueue.length === 0) {
+    if (state.isStreaming || state.isTranscribing || state.voiceQueue.length === 0 || state.shutdownRequested) {
       return;
     }
     const nextMessage = state.voiceQueue.shift();
@@ -1370,7 +1571,7 @@
 
   async function sendMessage(rawText) {
     const text = rawText.trim();
-    if (!text || state.isStreaming) {
+    if (!text || state.isStreaming || state.shutdownRequested) {
       return;
     }
 
@@ -1397,8 +1598,9 @@
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      let streamDone = false;
 
-      while (true) {
+      while (!streamDone) {
         const { done, value } = await reader.read();
         if (done) {
           break;
@@ -1429,6 +1631,7 @@
             updateStats(payload.stats);
           }
           if (payload.done) {
+            streamDone = true;
             break;
           }
         }
@@ -1446,30 +1649,134 @@
       state.isStreaming = false;
       updateComposerState();
       await flushVoiceQueue();
+      await syncHandsFreeState();
     }
+  }
+
+  function stopSilenceMonitor() {
+    if (state.silenceFrame) {
+      window.cancelAnimationFrame(state.silenceFrame);
+      state.silenceFrame = null;
+    }
+
+    const audioContext = state.audioContext;
+    state.audioContext = null;
+    state.analyser = null;
+    state.speechDetected = false;
+    state.silenceStartedAt = 0;
+    if (audioContext) {
+      audioContext.close().catch(() => {});
+    }
+  }
+
+  function cleanupMediaStream() {
+    stopSilenceMonitor();
+    if (state.mediaStream) {
+      state.mediaStream.getTracks().forEach((track) => track.stop());
+      state.mediaStream = null;
+    }
+  }
+
+  function startSilenceMonitor(stream) {
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextCtor) {
+      return;
+    }
+
+    const audioContext = new AudioContextCtor();
+    const source = audioContext.createMediaStreamSource(stream);
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 2048;
+    source.connect(analyser);
+
+    state.audioContext = audioContext;
+    state.analyser = analyser;
+    state.speechDetected = false;
+    state.silenceStartedAt = 0;
+    state.recordingStartedAt = window.performance.now();
+
+    const sampleBuffer = new Uint8Array(analyser.fftSize);
+    const speechThreshold = 0.02;
+    const maxSilenceMs = 1100;
+    const maxIdleMs = 8000;
+
+    audioContext.resume().catch(() => {});
+
+    const monitor = () => {
+      if (!state.isRecording || state.recordingMode !== 'handsfree' || !state.analyser) {
+        return;
+      }
+
+      analyser.getByteTimeDomainData(sampleBuffer);
+      let total = 0;
+      for (let i = 0; i < sampleBuffer.length; i += 1) {
+        const normalized = (sampleBuffer[i] - 128) / 128;
+        total += normalized * normalized;
+      }
+
+      const rms = Math.sqrt(total / sampleBuffer.length);
+      const now = window.performance.now();
+      const hasSpeech = rms > speechThreshold;
+
+      if (hasSpeech) {
+        state.speechDetected = true;
+        state.silenceStartedAt = 0;
+        els.voiceStatus.textContent = 'Speech detected';
+      } else if (state.speechDetected) {
+        if (!state.silenceStartedAt) {
+          state.silenceStartedAt = now;
+        }
+        els.voiceStatus.textContent = 'Waiting for the end of your sentence';
+        if (now - state.silenceStartedAt >= maxSilenceMs) {
+          stopRecording();
+          return;
+        }
+      } else {
+        els.voiceStatus.textContent = 'Hands-free listening';
+        if (now - state.recordingStartedAt >= maxIdleMs) {
+          stopRecording();
+          return;
+        }
+      }
+
+      state.silenceFrame = window.requestAnimationFrame(monitor);
+    };
+
+    state.silenceFrame = window.requestAnimationFrame(monitor);
   }
 
   async function stopRecording() {
     if (!state.mediaRecorder || state.mediaRecorder.state === 'inactive') {
       return;
     }
+    stopSilenceMonitor();
     state.mediaRecorder.stop();
     state.isRecording = false;
-    els.recordBtn.classList.remove('recording');
-    els.recordBtn.textContent = 'Start Recording';
+    updateVoiceControls();
     els.voiceStatus.textContent = 'Processing capture';
   }
 
-  async function startRecording() {
+  async function startRecording(mode) {
+    if (state.isRecording || state.isStreaming || state.isTranscribing || state.shutdownRequested) {
+      return;
+    }
+
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+        throw new Error('Browser audio capture is unavailable');
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      const mimeType = typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
         : 'audio/webm';
 
       state.recordedChunks = [];
       state.mediaStream = stream;
+      state.recordingMode = mode;
       state.mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      state.speechDetected = false;
+      state.silenceStartedAt = 0;
 
       state.mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -1478,20 +1785,31 @@
       };
 
       state.mediaRecorder.onstop = async () => {
-        const blob = new Blob(state.recordedChunks, { type: state.mediaRecorder.mimeType || 'audio/webm' });
-        if (state.mediaStream) {
-          state.mediaStream.getTracks().forEach((track) => track.stop());
-        }
+        const recorder = state.mediaRecorder;
+        const blob = new Blob(state.recordedChunks, { type: (recorder && recorder.mimeType) || 'audio/webm' });
+        cleanupMediaStream();
         state.mediaRecorder = null;
-        state.mediaStream = null;
         state.recordedChunks = [];
+        state.recordingMode = null;
+        state.isRecording = false;
+        if (state.shutdownRequested) {
+          state.isTranscribing = false;
+          updateVoiceControls();
+          els.voiceStatus.textContent = 'Shutdown in progress';
+          return;
+        }
+        state.isTranscribing = true;
+        updateVoiceControls();
 
         const formData = new FormData();
         formData.append('audio', blob, 'voice.webm');
 
         try {
-          const response = await fetch('/api/transcribe', { method: 'POST', body: formData });
-          const payload = await response.json();
+          let payload = { text: '' };
+          if (blob.size > 0) {
+            const response = await fetch('/api/transcribe', { method: 'POST', body: formData });
+            payload = await response.json();
+          }
           if (payload.stats) {
             updateStats(payload.stats);
           }
@@ -1508,28 +1826,85 @@
           }
         } catch (error) {
           els.voiceStatus.textContent = 'Transcription failed';
+        } finally {
+          state.isTranscribing = false;
+          updateVoiceControls();
+          if (state.handsFreeEnabled && state.interactionMode === 'voice' && !state.shutdownRequested) {
+            window.setTimeout(() => {
+              syncHandsFreeState();
+            }, 180);
+          }
         }
       };
 
       state.mediaRecorder.start();
       state.isRecording = true;
-      els.recordBtn.classList.add('recording');
-      els.recordBtn.textContent = 'Stop Recording';
-      els.voiceStatus.textContent = 'Recording live';
+      updateVoiceControls();
+      els.voiceStatus.textContent = mode === 'handsfree' ? 'Hands-free listening' : 'Recording live';
+
+      if (mode === 'handsfree') {
+        startSilenceMonitor(stream);
+      }
     } catch (error) {
       els.voiceStatus.textContent = 'Microphone unavailable';
+      state.recordingMode = null;
+      cleanupMediaStream();
+      updateVoiceControls();
     }
   }
 
   async function toggleRecording() {
+    if (state.handsFreeEnabled || state.shutdownRequested) {
+      return;
+    }
     if (state.isRecording) {
       await stopRecording();
       return;
     }
-    await startRecording();
+    await startRecording('manual');
+  }
+
+  async function syncHandsFreeState() {
+    updateVoiceControls();
+
+    if (
+      state.shutdownRequested
+      || state.interactionMode !== 'voice'
+      || !state.handsFreeEnabled
+      || state.isRecording
+      || state.isStreaming
+      || state.isTranscribing
+    ) {
+      if (state.interactionMode !== 'voice' && state.isRecording && state.recordingMode === 'handsfree') {
+        await stopRecording();
+      }
+      return;
+    }
+
+    await startRecording('handsfree');
+  }
+
+  async function toggleHandsFree() {
+    if (state.shutdownRequested) {
+      return;
+    }
+    state.handsFreeEnabled = !state.handsFreeEnabled;
+    updateVoiceControls();
+    if (state.handsFreeEnabled && state.isRecording && state.recordingMode === 'manual') {
+      await stopRecording();
+      return;
+    }
+    if (!state.handsFreeEnabled && state.isRecording && state.recordingMode === 'handsfree') {
+      await stopRecording();
+      return;
+    }
+    await syncHandsFreeState();
   }
 
   async function fetchStats() {
+    if (state.shutdownRequested) {
+      return;
+    }
     try {
       const response = await fetch('/api/stats');
       if (!response.ok) {
@@ -1538,6 +1913,43 @@
       updateStats(await response.json());
     } catch (error) {
       console.error('Stats refresh failed', error);
+    }
+  }
+
+  async function shutdownApp() {
+    if (state.shutdownRequested) {
+      return;
+    }
+
+    if (!window.confirm('Shut down the Companion app now?')) {
+      return;
+    }
+
+    state.shutdownRequested = true;
+    if (state.statsTimer) {
+      window.clearInterval(state.statsTimer);
+      state.statsTimer = null;
+    }
+
+    stopAudioPlayback();
+    if (state.isRecording) {
+      await stopRecording();
+    }
+
+    els.shutdownBtn.disabled = true;
+    els.shutdownBtn.classList.add('active');
+    els.connectionPill.textContent = 'Shutdown requested';
+    els.connectionPill.style.color = 'var(--danger)';
+    els.voiceStatus.textContent = 'Shutdown in progress';
+    els.settingsStatus.textContent = 'Shutdown requested.';
+    setPhase('shutting_down');
+    updateComposerState();
+    updateVoiceControls();
+
+    try {
+      await fetch('/api/shutdown', { method: 'POST' });
+    } catch (error) {
+      els.connectionPill.textContent = 'Shutdown signal sent';
     }
   }
 
@@ -1560,7 +1972,7 @@
       state.ttsEnabled = Boolean(result.config.web.audio_enabled_default);
       els.ttsBtn.textContent = `Voice Playback: ${state.ttsEnabled ? 'On' : 'Off'}`;
       updateStats(result.stats);
-      setInteractionMode(result.config.web.voice_chat_default ? 'voice' : 'text');
+      await setInteractionMode(result.config.web.voice_chat_default ? 'voice' : 'text');
       const historyResponse = await fetch('/api/history');
       if (historyResponse.ok) {
         state.messages = await historyResponse.json();
@@ -1592,9 +2004,9 @@
       els.ttsBtn.textContent = `Voice Playback: ${state.ttsEnabled ? 'On' : 'Off'}`;
 
       if (payload.config && payload.config.voice_chat_default === true) {
-        setInteractionMode('voice');
+        await setInteractionMode('voice');
       } else {
-        setInteractionMode('text');
+        await setInteractionMode('text');
       }
     } catch (error) {
       els.connectionPill.textContent = 'Bootstrap failed';
@@ -1602,7 +2014,8 @@
       els.chatLog.innerHTML = `<div class="chat-placeholder">Bootstrap failed: ${escapeHtml(error.message)}</div>`;
     }
 
-    window.setInterval(fetchStats, 5000);
+    updateVoiceControls();
+    state.statsTimer = window.setInterval(fetchStats, 5000);
   }
 
   els.dashboardTab.addEventListener('click', () => setPrimaryView('dashboard'));
@@ -1613,8 +2026,10 @@
     state.ttsEnabled = !state.ttsEnabled;
     els.ttsBtn.textContent = `Voice Playback: ${state.ttsEnabled ? 'On' : 'Off'}`;
   });
+  els.voiceAutoBtn.addEventListener('click', toggleHandsFree);
   els.recordBtn.addEventListener('click', toggleRecording);
   els.saveSettingsBtn.addEventListener('click', saveSettings);
+  els.shutdownBtn.addEventListener('click', shutdownApp);
   els.messageInput.addEventListener('input', updateComposerState);
   els.messageInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
