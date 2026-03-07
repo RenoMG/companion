@@ -102,8 +102,10 @@ def create_app(config: CompanionConfig | None = None) -> Flask:
                 raise ValueError("Audio stream had no decodable frames")
 
             audio = np.concatenate(chunks)
+            # Normalize integer PCM formats (s16, s32, u8, etc.) to [-1.0, 1.0].
+            # Float formats (flt, fltp, dbl, dblp) are already in that range.
             fmt = stream.codec_context.format
-            if fmt is not None and fmt.is_planar:
+            if fmt is not None and fmt.name and fmt.name[0] in ("s", "u"):
                 bits = max(int(fmt.bits or 16), 1)
                 max_abs = float(2 ** (bits - 1))
                 if max_abs > 0:
