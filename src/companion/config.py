@@ -1,9 +1,9 @@
-"""Configuration dataclasses and YAML loader for Companion."""
+"""Configuration dataclasses and YAML helpers for Companion."""
 
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -92,6 +92,35 @@ def _apply_dict_to_dataclass(dc: Any, data: dict[str, Any]) -> None:
             setattr(dc, key, value)
 
 
+def config_from_dict(raw: dict[str, Any] | None) -> CompanionConfig:
+    """Build a config object from a raw nested dictionary."""
+    config = CompanionConfig()
+    if not raw:
+        return config
+
+    # Map nested sections to their sub-dataclasses
+    nested_map: dict[str, Any] = {
+        "ollama": config.ollama,
+        "whisper": config.whisper,
+        "kokoro": config.kokoro,
+        "memory": config.memory,
+        "web": config.web,
+    }
+
+    for key, value in raw.items():
+        if key in nested_map and isinstance(value, dict):
+            _apply_dict_to_dataclass(nested_map[key], value)
+        elif hasattr(config, key):
+            setattr(config, key, value)
+
+    return config
+
+
+def config_to_dict(config: CompanionConfig) -> dict[str, Any]:
+    """Convert a config dataclass tree into a serializable dictionary."""
+    return asdict(config)
+
+
 def load_config(path: str = "config.yaml") -> CompanionConfig:
     """Load configuration from a YAML file.
 
@@ -112,21 +141,17 @@ def load_config(path: str = "config.yaml") -> CompanionConfig:
         logger.warning("Config file '%s' is empty — using defaults.", config_path)
         return CompanionConfig()
 
-    config = CompanionConfig()
+    return config_from_dict(raw)
 
-    # Map nested sections to their sub-dataclasses
-    nested_map: dict[str, Any] = {
-        "ollama": config.ollama,
-        "whisper": config.whisper,
-        "kokoro": config.kokoro,
-        "memory": config.memory,
-        "web": config.web,
-    }
 
-    for key, value in raw.items():
-        if key in nested_map and isinstance(value, dict):
-            _apply_dict_to_dataclass(nested_map[key], value)
-        elif hasattr(config, key):
-            setattr(config, key, value)
-
-    return config
+def save_config(config: CompanionConfig, path: str = "config.yaml") -> None:
+    """Persist a configuration object to YAML."""
+    config_path = Path(path)
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with config_path.open("w", encoding="utf-8") as f:
+        yaml.safe_dump(
+            config_to_dict(config),
+            f,
+            sort_keys=False,
+            allow_unicode=False,
+        )

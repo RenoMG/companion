@@ -2,8 +2,7 @@
 
 __version__ = "0.1.0"
 
-# Suppress ALSA error messages on Linux/WSL.
-# Must run before sounddevice (PortAudio) is imported by any submodule.
+# Suppress ALSA error messages on Linux/WSL before audio libraries initialize.
 import ctypes as _ctypes
 
 try:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass
 from typing import Generator
 
 import httpx
@@ -11,6 +12,18 @@ import httpx
 from companion.config import OllamaConfig
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ChatUsage:
+    """Token usage and timing metadata reported by Ollama."""
+
+    model: str
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    total_duration: int = 0
+    eval_duration: int = 0
 
 # Tool definitions for LLM-driven memory (OpenAI-compatible format).
 FACT_TOOLS: list[dict] = [
@@ -86,6 +99,7 @@ class OllamaClient:
         messages: list[dict],
         tools: list[dict] | None = None,
         tool_calls_out: list | None = None,
+        usage_out: dict | None = None,
     ) -> Generator[str, None, None]:
         """Stream chat completions from Ollama, yielding text chunks.
 
@@ -129,6 +143,18 @@ class OllamaClient:
                     if tc:
                         accumulated_tool_calls.extend(tc)
                     if chunk.get("done"):
+                        if usage_out is not None:
+                            prompt_tokens = int(chunk.get("prompt_eval_count") or 0)
+                            completion_tokens = int(chunk.get("eval_count") or 0)
+                            usage = ChatUsage(
+                                model=str(chunk.get("model") or self._model),
+                                prompt_tokens=prompt_tokens,
+                                completion_tokens=completion_tokens,
+                                total_tokens=prompt_tokens + completion_tokens,
+                                total_duration=int(chunk.get("total_duration") or 0),
+                                eval_duration=int(chunk.get("eval_duration") or 0),
+                            )
+                            usage_out.update(usage.__dict__)
                         break
 
             if accumulated_tool_calls and tool_calls_out is not None:
@@ -198,6 +224,13 @@ class OllamaClient:
             return resp.status_code == 200
         except httpx.HTTPError:
             return False
+
+    def update_config(self, config: OllamaConfig) -> None:
+        """Apply live LLM settings without recreating the HTTP client."""
+        self._base_url = config.base_url.rstrip("/")
+        self._model = config.model
+        self._temperature = config.temperature
+        self._context_window = config.context_window
 
     def close(self) -> None:
         """Close the underlying HTTP client."""

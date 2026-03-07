@@ -46,6 +46,20 @@ CREATE TABLE IF NOT EXISTS facts (
     value     TEXT    NOT NULL,
     updated   TEXT    NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS usage_totals (
+    id                 INTEGER PRIMARY KEY CHECK(id = 1),
+    prompt_tokens      INTEGER NOT NULL DEFAULT 0,
+    completion_tokens  INTEGER NOT NULL DEFAULT 0,
+    requests           INTEGER NOT NULL DEFAULT 0,
+    updated            TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+INSERT OR IGNORE INTO usage_totals (
+    id, prompt_tokens, completion_tokens, requests, updated
+) VALUES (
+    1, 0, 0, 0, datetime('now')
+);
 """
 
 
@@ -150,6 +164,10 @@ class MemoryStore:
             self._conn.commit()
         logger.info("Message history cleared after summarisation.")
 
+    def get_message_count(self) -> int:
+        """Return the current number of session messages."""
+        return self.get_total_message_count()
+
     # ------------------------------------------------------------------
     # Summaries
     # ------------------------------------------------------------------
@@ -206,6 +224,12 @@ class MemoryStore:
             rows = self._conn.execute("SELECT key, value FROM facts").fetchall()
         return {r["key"]: r["value"] for r in rows}
 
+    def get_fact_count(self) -> int:
+        """Return the number of stored facts."""
+        with self._lock:
+            row = self._conn.execute("SELECT COUNT(*) AS cnt FROM facts").fetchone()
+        return row["cnt"]
+
     def delete_fact(self, key: str) -> None:
         """Remove a fact by key."""
         with self._lock:
@@ -246,6 +270,62 @@ class MemoryStore:
             context.append({"role": msg.role, "content": msg.content})
 
         return context
+
+    # ------------------------------------------------------------------
+    # Usage metrics
+    # ------------------------------------------------------------------
+
+    def add_usage(
+        self, prompt_tokens: int, completion_tokens: int, requests: int = 1
+    ) -> None:
+        """Accumulate token totals for lifetime usage stats."""
+        with self._lock:
+            self._conn.execute(
+                "UPDATE usage_totals "
+                "SET prompt_tokens = prompt_tokens + ?, "
+                "    completion_tokens = completion_tokens + ?, "
+                "    requests = requests + ?, "
+                "    updated = datetime('now') "
+                "WHERE id = 1",
+                (prompt_tokens, completion_tokens, requests),
+            )
+            self._conn.commit()
+
+    def get_usage_totals(self) -> dict[str, int]:
+        """Return persisted lifetime usage counters."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT prompt_tokens, completion_tokens, requests "
+                "FROM usage_totals WHERE id = 1"
+            ).fetchone()
+        if row is None:
+            return {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "requests": 0,
+            }
+        prompt_tokens = int(row["prompt_tokens"])
+        completion_tokens = int(row["completion_tokens"])
+        return {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_tokens + completion_tokens,
+            "requests": int(row["requests"]),
+        }
+
+    def get_summary_count(self) -> int:
+        """Return the number of stored summaries."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT COUNT(*) AS cnt FROM summaries"
+            ).fetchone()
+        return row["cnt"]
+
+    def update_config(self, config: MemoryConfig) -> None:
+        """Apply in-memory retention settings without reopening the database."""
+        self._max_context = config.max_context_messages
+        self._summary_threshold = config.summary_threshold
 
     # ------------------------------------------------------------------
     # Lifecycle helpers

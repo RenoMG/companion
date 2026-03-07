@@ -5,13 +5,13 @@
 # Any key you omit will use the default shown here.
 # ============================================================
 
-# Display name used in console output and the greeting
+# Display name used throughout the web dashboard
 companion_name: Companion
 
 # System prompt sent to the LLM at the start of every context window.
 # Keep it concise — every token here reduces room for conversation history.
 system_prompt: |
-  You are a friendly, curious, and helpful voice companion.
+  You are a friendly, curious, and helpful AI companion.
   Keep your responses concise and conversational — typically one to three
   sentences. You speak naturally, like a close friend. Avoid lists, markdown
   formatting, or overly formal language. Ask follow-up questions to keep the
@@ -50,8 +50,8 @@ whisper:
   model_size: base                 # tiny | base | small | medium | large
   device: cuda                     # cuda | cpu
   language: en                     # ISO 639-1 language code
-  energy_threshold: 300            # Mic sensitivity (higher = less sensitive)
-  pause_duration: 1.2              # Seconds of silence to end an utterance
+  energy_threshold: 300            # Reserved for future browser audio tuning
+  pause_duration: 1.2              # Reserved for future browser audio tuning
 
 # ------------------------------------------------------------------
 # Kokoro Text-to-Speech
@@ -81,4 +81,4 @@ memory:
 # ------------------------------------------------------------------
 web:
   audio_enabled_default: true      # Enable assistant voice playback by default
-  voice_chat_default: false        # true = mic button behaves as hold-to-talk toggle
+  voice_chat_default: false        # Open the interaction box in voice mode by default
