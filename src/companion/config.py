@@ -61,7 +61,7 @@ class MemoryConfig:
 
     db_path: str = "data/companion.db"
     max_context_messages: int = 20
-    summary_threshold: int = 50
+    summary_threshold: int = 30
 
 
 @dataclass
