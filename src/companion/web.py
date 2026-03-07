@@ -8,6 +8,7 @@ import logging
 import threading
 from pathlib import Path
 
+import av
 import numpy as np
 import soundfile as sf
 from flask import Flask, Response, jsonify, request, send_from_directory
@@ -76,6 +77,42 @@ def create_app(config: CompanionConfig | None = None) -> Flask:
         src_x = np.linspace(0.0, duration, num=audio.shape[0], endpoint=False)
         dst_x = np.linspace(0.0, duration, num=target_length, endpoint=False)
         return np.interp(dst_x, src_x, audio).astype(np.float32)
+
+    def _decode_audio_with_pyav(audio_bytes: bytes) -> tuple[np.ndarray, int]:
+        """Decode compressed audio bytes (e.g. webm/opus) to float32 mono audio."""
+        with av.open(io.BytesIO(audio_bytes), mode="r") as container:
+            stream = next((s for s in container.streams if s.type == "audio"), None)
+            if stream is None:
+                raise ValueError("No audio stream found")
+
+            chunks: list[np.ndarray] = []
+            sample_rate = int(stream.codec_context.sample_rate or 0)
+
+            for frame in container.decode(stream):
+                frame_array = frame.to_ndarray().astype(np.float32)
+                if frame_array.ndim == 1:
+                    mono = frame_array
+                else:
+                    mono = frame_array.mean(axis=0)
+                chunks.append(mono)
+                if sample_rate <= 0:
+                    sample_rate = int(frame.sample_rate or 0)
+
+            if not chunks:
+                raise ValueError("Audio stream had no decodable frames")
+
+            audio = np.concatenate(chunks)
+            fmt = stream.codec_context.format
+            if fmt is not None and fmt.is_planar:
+                bits = max(int(fmt.bits or 16), 1)
+                max_abs = float(2 ** (bits - 1))
+                if max_abs > 0:
+                    audio /= max_abs
+
+            if sample_rate <= 0:
+                raise ValueError("Could not determine sample rate")
+
+            return np.clip(audio, -1.0, 1.0), sample_rate
 
     # ------------------------------------------------------------------
     # Routes
@@ -164,12 +201,18 @@ def create_app(config: CompanionConfig | None = None) -> Flask:
         audio_file = request.files["audio"]
         stt: SpeechToText = _get("stt")
 
+        audio_bytes = audio_file.read()
+
         try:
-            audio_buf = io.BytesIO(audio_file.read())
+            audio_buf = io.BytesIO(audio_bytes)
             audio, sample_rate = sf.read(audio_buf, dtype="float32")
         except Exception as exc:
-            logger.error("Failed to read audio: %s", exc)
-            return jsonify({"error": "Audio conversion failed"}), 500
+            logger.warning("soundfile decode failed, trying PyAV fallback: %s", exc)
+            try:
+                audio, sample_rate = _decode_audio_with_pyav(audio_bytes)
+            except Exception as fallback_exc:
+                logger.error("Failed to read audio: %s", fallback_exc)
+                return jsonify({"error": "Audio conversion failed"}), 500
 
         # Ensure mono.
         if audio.ndim > 1:
