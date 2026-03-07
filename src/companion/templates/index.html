@@ -358,6 +358,11 @@
     input.placeholder = `Message ${cfg.companion_name || 'Companion'}...`;
     ttsEnabled = cfg.audio_enabled_default !== false;
     ttsToggle.checked = ttsEnabled;
+    if (cfg.voice_chat_default === true) {
+      setMode('voice');
+    } else {
+      setMode('text');
+    }
   });
 
   fetch('/api/history').then(r => r.json()).then(messages => {
