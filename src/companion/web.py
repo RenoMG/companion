@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import atexit
 import io
 import json
 import logging
 import threading
+import time
 from pathlib import Path
 
 import av
@@ -64,6 +66,10 @@ def create_app(config: CompanionConfig | None = None) -> Flask:
             logger.info("Loading text-to-speech model …")
             state["tts"] = TextToSpeech(config.kokoro, playback=False)
             logger.info("All components initialised.")
+
+            # Summarise and clear any leftover messages from a previous session
+            # so the web UI always starts with a blank chat.
+            _cleanup_previous_session(state["memory"], state["llm"])
 
     def _resample_audio(audio: np.ndarray, from_rate: int, to_rate: int) -> np.ndarray:
         """Resample mono audio with linear interpolation."""
@@ -305,5 +311,75 @@ def create_app(config: CompanionConfig | None = None) -> Flask:
                 logger.info("Summarised; deleted messages up to id=%d.", max_id)
         finally:
             _summarising.clear()
+
+    def _cleanup_previous_session(
+        memory: MemoryStore, llm: OllamaClient
+    ) -> None:
+        """Summarise and clear leftover messages from a previous session."""
+        messages = memory.get_all_messages()
+        if not messages:
+            return
+        logger.info(
+            "Found %d leftover messages from previous session, summarising…",
+            len(messages),
+        )
+        try:
+            existing_summary = memory.get_latest_summary()
+            conversation_text = "\n".join(
+                f"{m.role.title()}: {m.content}" for m in messages
+            )
+            summary = llm.summarise(conversation_text, existing_summary)
+            if summary:
+                memory.add_summary(summary)
+        except Exception:
+            logger.exception("Failed to summarise leftover messages on startup.")
+        memory.clear_messages()
+        logger.info("Cleared leftover messages for fresh session.")
+
+    def _shutdown_cleanup() -> None:
+        """Summarise remaining messages and release resources on shutdown."""
+        if not state:
+            return
+
+        # Wait for any in-progress background summarisation.
+        if _summarising.is_set():
+            logger.info("Waiting for background summarisation to finish…")
+            start = time.monotonic()
+            while _summarising.is_set() and (time.monotonic() - start) < 15:
+                time.sleep(0.5)
+
+        memory: MemoryStore | None = state.get("memory")
+        llm: OllamaClient | None = state.get("llm")
+        tts_engine: TextToSpeech | None = state.get("tts")
+
+        if memory and llm:
+            try:
+                messages = memory.get_all_messages()
+                if messages:
+                    logger.info("Summarising %d messages on shutdown.", len(messages))
+                    existing_summary = memory.get_latest_summary()
+                    conversation_text = "\n".join(
+                        f"{m.role.title()}: {m.content}" for m in messages
+                    )
+                    summary = llm.summarise(conversation_text, existing_summary)
+                    if summary:
+                        memory.add_summary(summary)
+                    memory.clear_messages()
+            except Exception:
+                logger.exception("Shutdown summarisation failed.")
+                try:
+                    memory.clear_messages()
+                except Exception:
+                    logger.exception("Failed to clear messages on shutdown.")
+
+        if llm:
+            llm.close()
+        if tts_engine:
+            tts_engine.stop()
+        if memory:
+            memory.close()
+        logger.info("Web app cleanup complete.")
+
+    atexit.register(_shutdown_cleanup)
 
     return app
