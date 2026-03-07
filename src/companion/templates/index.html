@@ -341,6 +341,7 @@
   let micChunks = [];
   let speechStarted = false;
   let silenceStart = 0;
+  const pendingVoiceMessages = [];
 
   let aiAudioCtx = null;
   let aiAnalyser = null;
@@ -423,7 +424,7 @@
   }
 
   async function sendMessage(text) {
-    if (!text.trim() || isStreaming) return;
+    if (!text.trim() || isStreaming) return false;
     isStreaming = true;
     sendBtn.disabled = true;
     input.value = '';
@@ -438,6 +439,15 @@
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({message: text})
       });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(errorBody || `Chat request failed (${response.status})`);
+      }
+
+      if (!response.body) {
+        throw new Error('Streaming response not available in this browser.');
+      }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -475,12 +485,23 @@
       if (ttsEnabled && fullResponse) {
         playTTS(fullResponse);
       }
+      return true;
     } catch (err) {
       bubble.innerHTML = `<p style="color:#ff8ca2">Error: ${escapeHtml(err.message)}</p>`;
+      voiceHint.textContent = `Could not send message: ${err.message}`;
+      return false;
     } finally {
       isStreaming = false;
       sendBtn.disabled = !input.value.trim();
+      flushVoiceQueue();
     }
+  }
+
+  async function flushVoiceQueue() {
+    if (isStreaming || pendingVoiceMessages.length === 0) return;
+    const nextText = pendingVoiceMessages.shift();
+    if (!nextText) return;
+    await sendMessage(nextText);
   }
 
   async function playTTS(text) {
@@ -564,13 +585,25 @@
       const resp = await fetch('/api/transcribe', {method: 'POST', body: formData});
       const data = await resp.json();
       if (data.text && data.text.trim()) {
-        voiceHint.textContent = `Heard: “${data.text.trim()}”`;
-        sendMessage(data.text.trim());
+        const transcript = data.text.trim();
+        voiceHint.textContent = `Heard: “${transcript}”`;
+
+        if (isStreaming) {
+          pendingVoiceMessages.push(transcript);
+          voiceStatus.textContent = 'Voice mode: queued until current reply completes…';
+        } else {
+          await sendMessage(transcript);
+        }
+      } else {
+        voiceHint.textContent = 'Heard audio, but no clear transcript. Please try again.';
       }
     } catch (e) {
       console.error('Transcription failed:', e);
+      voiceHint.textContent = 'Transcription failed. Please try again.';
     } finally {
-      voiceStatus.textContent = 'Voice mode: listening…';
+      if (!isStreaming && pendingVoiceMessages.length === 0) {
+        voiceStatus.textContent = 'Voice mode: listening…';
+      }
     }
   }
 
